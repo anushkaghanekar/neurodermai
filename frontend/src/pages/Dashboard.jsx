@@ -1,335 +1,275 @@
 import { useEffect, useState } from "react";
+import { fetchModelMetadata, predictSkinCondition } from "../lib/api";
 
-import {
-  API_BASE_URL,
-  fetchModelMetadata,
-  predictSkinCondition,
-} from "../lib/api";
-import Landing from "./Landing";
-
-const SUPPORTED_CONDITIONS = [
-  "acne",
-  "eczema",
-  "psoriasis",
-  "fungal",
-  "warts",
-  "normal",
-];
+const DISEASE_INFO = {
+  acne: {
+    image: "/images/acne.png",
+    description: "Acne occurs when hair follicles plug with oil and dead skin cells. It causes whiteheads, blackheads or pimples, typically appearing on the face, forehead, chest, upper back and shoulders."
+  },
+  eczema: {
+    image: "/images/eczema.png",
+    description: "Atopic dermatitis (eczema) is a condition that makes your skin red and itchy. It's common in children but can occur at any age. It is chronic and tends to flare periodically."
+  },
+  psoriasis: {
+    image: "/images/psoriasis.png",
+    description: "Psoriasis is a skin disease that causes a rash with itchy, scaly patches, most commonly on the knees, elbows, trunk and scalp. It is a common, long-term (chronic) disease with no cure."
+  },
+  fungal: {
+    image: "/images/fungal.png",
+    description: "A fungal infection, also called mycosis, is a skin disease caused by a fungus. Common types include ringworm, athlete's foot, and yeast infections. They often present as red, scaly, itchy rashes."
+  },
+  warts: {
+    image: "/images/warts.png",
+    description: "Warts are small, rough patches of skin that can look like blisters or small cauliflowers. They're caused by a viral infection of the skin by the human papillomavirus (HPV)."
+  },
+  normal: {
+    image: "/images/healthy.png",
+    description: "Healthy, normal skin appears smooth, with consistent color, and is free from blemishes, unusual scaling, or persistent rashes. It maintains a strong barrier function."
+  }
+};
 
 function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function Dashboard() {
+export default function Dashboard() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [inputKey, setInputKey] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  
   const [metadata, setMetadata] = useState({
     ready: false,
     class_names: [],
     disclaimer: "",
-    error: "",
+    error: ""
   });
   const [metadataError, setMetadataError] = useState("");
 
   useEffect(() => {
-    if (!selectedFile) {
-      setPreviewUrl("");
-      return undefined;
-    }
-
-    const objectUrl = URL.createObjectURL(selectedFile);
-    setPreviewUrl(objectUrl);
-
-    return () => {
-      URL.revokeObjectURL(objectUrl);
-    };
-  }, [selectedFile]);
-
-  useEffect(() => {
     let active = true;
-
     async function loadMetadata() {
       try {
         const payload = await fetchModelMetadata();
-        if (!active) {
-          return;
+        if (active) {
+          setMetadata(payload);
+          setMetadataError("");
         }
-
-        setMetadata(payload);
-        setMetadataError("");
-      } catch (requestError) {
-        if (!active) {
-          return;
-        }
-
-        setMetadataError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unable to reach the backend metadata endpoint.",
-        );
+      } catch (err) {
+        if (active) setMetadataError(err.message || "Failed to reach backend.");
       }
     }
-
     loadMetadata();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
-  function handleFileChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) {
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl("");
       return;
     }
+    const url = URL.createObjectURL(selectedFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
 
-    setSelectedFile(file);
-    setResult(null);
+  function onFileSelect(e) {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      setResult(null);
+      setError("");
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0]);
+      setResult(null);
+      setError("");
+    }
+  }
+
+  async function handleAnalyze() {
+    if (!selectedFile) return;
+    setIsLoading(true);
     setError("");
+    try {
+      const payload = await predictSkinCondition(selectedFile);
+      setResult(payload);
+    } catch (err) {
+      setError(err.message || "Prediction failed.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleReset() {
     setSelectedFile(null);
     setResult(null);
     setError("");
-    setInputKey((current) => current + 1);
   }
-
-  async function handleAnalyze(event) {
-    event.preventDefault();
-
-    if (!selectedFile) {
-      setError("Choose a skin image before running the prediction.");
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const payload = await predictSkinCondition(selectedFile);
-      setResult(payload);
-    } catch (requestError) {
-      setResult(null);
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Prediction failed. Please try again.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const probabilityEntries = result
-    ? Object.entries(result.probabilities).sort(([, left], [, right]) => right - left)
-    : [];
-  const supportedConditions =
-    metadata.class_names.length > 0 ? metadata.class_names : SUPPORTED_CONDITIONS;
 
   return (
-    <main className="app-shell">
-      <div className="page-glow page-glow-one" />
-      <div className="page-glow page-glow-two" />
-
-      <Landing
-        apiBaseUrl={API_BASE_URL}
-        supportedConditions={supportedConditions}
-      />
-
-      {metadataError ? (
-        <p className="status-banner error-banner">
-          Backend metadata could not be loaded: {metadataError}
+    <div className="app-shell">
+      <header className="brand-header">
+        <h1 className="brand-title">NeuroDermAI</h1>
+        <p className="brand-subtitle">
+          Next-generation skin condition triage. Upload your image for an instant analysis.
         </p>
-      ) : null}
+      </header>
 
-      {!metadataError && !metadata.ready ? (
-        <p className="status-banner info-banner">
-          Backend is reachable, but a real Kaggle-exported `model.h5` and `labels.json`
-          still need to be placed in the repository before predictions can run.
-          {metadata.error ? ` ${metadata.error}` : ""}
-        </p>
-      ) : null}
+      {metadataError && (
+        <div className="banner banner-error">
+          <strong>Backend Error: </strong> {metadataError}
+        </div>
+      )}
+      
+      {!metadataError && !metadata.ready && (
+        <div className="banner banner-warning">
+          <strong>Model Not Ready: </strong> 
+          Model artifacts (`model.h5`, `labels.json`) must be present in the backend.
+        </div>
+      )}
 
-      <section className="workspace-grid">
-        <article className="panel upload-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Step 1</p>
-              <h2>Upload an image</h2>
-            </div>
-            <p className="panel-copy">
-              Use a close, well-lit photo with the skin area clearly visible.
-            </p>
-          </div>
+      <main className="main-grid">
+        {/* Left Column: Editor/Upload */}
+        <section className="glass-panel">
+          <h2 className="panel-title">1. Image Input</h2>
+          <p className="panel-description">Upload a clear, well-lit photo of the skin area.</p>
 
-          <form className="upload-form" onSubmit={handleAnalyze}>
-            <label
-              className={`upload-zone ${previewUrl ? "has-file" : ""}`}
-              htmlFor="skin-image-input"
-            >
-              <input
-                accept="image/*"
-                id="skin-image-input"
-                key={inputKey}
-                onChange={handleFileChange}
-                type="file"
-              />
-
-              {previewUrl ? (
-                <div className="preview-frame">
-                  <img
-                    alt="Selected skin preview"
-                    className="preview-image"
-                    src={previewUrl}
-                  />
-                </div>
-              ) : (
-                <div className="upload-placeholder">
-                  <p className="upload-title">Drop an image here or click to browse</p>
-                  <p className="upload-copy">
-                    JPG, PNG, BMP, or WebP images work best. Avoid screenshots of
-                    blurry or very dark photos.
-                  </p>
-                </div>
-              )}
-            </label>
-
-            <div className="file-meta">
-              <div>
-                <span className="file-label">Selected file</span>
-                <strong>{selectedFile ? selectedFile.name : "No file chosen yet"}</strong>
+          <label 
+            className={`upload-zone ${isDragging ? "drag-active" : ""}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <input 
+              type="file" 
+              className="upload-input" 
+              accept="image/*" 
+              onChange={onFileSelect}
+            />
+            {previewUrl ? (
+              <div className="image-preview-container">
+                <img src={previewUrl} alt="Preview" className="image-preview" />
               </div>
-              {selectedFile ? <span>{Math.round(selectedFile.size / 1024)} KB</span> : null}
-            </div>
+            ) : (
+              <div className="upload-content">
+                <div className="upload-icon">⊕</div>
+                <div className="upload-text">Click or drag & drop to upload</div>
+                <div className="upload-hint">PNG, JPG or WebP. Optimal size under 5MB.</div>
+              </div>
+            )}
+          </label>
 
-            <div className="upload-actions">
-              <button
-                className="primary-button"
-                disabled={isLoading || !metadata.ready}
-                type="submit"
-              >
-                {isLoading
-                  ? "Analyzing image..."
-                  : metadata.ready
-                    ? "Analyze skin image"
-                    : "Model artifacts required"}
-              </button>
-              <button
-                className="secondary-button"
-                disabled={isLoading || !selectedFile}
-                onClick={handleReset}
-                type="button"
-              >
-                Reset
-              </button>
-            </div>
-          </form>
-
-          {error ? <p className="status-banner error-banner">{error}</p> : null}
-          {isLoading ? (
-            <p className="status-banner info-banner">
-              The React client is waiting for the FastAPI service to return the model prediction.
-            </p>
-          ) : null}
-        </article>
-
-        <article className="panel result-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Step 2</p>
-              <h2>Prediction summary</h2>
-            </div>
-            <p className="panel-copy">
-              The model returns the top class, confidence score, and a ranked shortlist.
-            </p>
+          <div className="upload-actions">
+            <button 
+              className="btn btn-secondary" 
+              onClick={handleReset}
+              disabled={!selectedFile || isLoading}
+            >
+              Clear Image
+            </button>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleAnalyze}
+              disabled={!selectedFile || isLoading || !metadata.ready}
+            >
+              {isLoading ? "Analyzing..." : "Analyze Skin"}
+            </button>
           </div>
+        </section>
+
+        {/* Right Column: Results */}
+        <section className="glass-panel">
+          <h2 className="panel-title">2. Analysis Summary</h2>
+          <p className="panel-description">Detailed breakdown of the AI prediction.</p>
+          
+          {error && <div className="banner banner-error">{error}</div>}
 
           {result ? (
-            <div className="result-stack">
+            <div className="result-content fade-in">
               <div className="result-hero">
                 <div>
-                  <span className="result-badge">Predicted class</span>
-                  <h3>{result.prediction}</h3>
+                  <span className="prediction-label">Primary Match</span>
+                  <h3 className="prediction-value">{result.prediction}</h3>
                 </div>
-                <div className="confidence-chip">{formatPercent(result.confidence)}</div>
+                <div className="confidence-badge">
+                  {formatPercent(result.confidence)}
+                </div>
               </div>
 
-              <p className="result-copy">{result.explanation}</p>
-
-              <section>
-                <h4>Top-3 predictions</h4>
-                <div className="top-list">
-                  {result.top_3.map((item, index) => (
-                    <article className="top-item" key={`${item.label}-${index}`}>
-                      <div className="top-item-header">
-                        <span>{item.label}</span>
-                        <strong>{formatPercent(item.probability)}</strong>
-                      </div>
-                      <div className="probability-track">
-                        <span
-                          className="probability-fill"
-                          style={{ width: `${Math.max(item.probability * 100, 4)}%` }}
+              <div className="result-section">
+                <h4 className="section-title">Top 3 Candidates</h4>
+                <div className="top-predictions">
+                  {result.top_3.map((item, i) => (
+                    <div className="top-prediction-item" key={i}>
+                      <span className="top-label">{item.label}</span>
+                      <div className="top-bar-container">
+                        <div 
+                          className="top-bar-fill" 
+                          style={{ width: `${Math.max(item.probability * 100, 2)}%` }} 
                         />
                       </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <h4>All class probabilities</h4>
-                <div className="probability-grid">
-                  {probabilityEntries.map(([label, probability]) => (
-                    <div className="probability-row" key={label}>
-                      <span>{label}</span>
-                      <strong>{formatPercent(probability)}</strong>
+                      <span className="top-value">{formatPercent(item.probability)}</span>
                     </div>
                   ))}
                 </div>
-              </section>
+              </div>
 
-              <section>
-                <h4>Precautions</h4>
+              <div className="result-section" style={{marginBottom: 0}}>
+                <h4 className="section-title">General Precautions</h4>
                 <ul className="precautions-list">
-                  {result.precautions.map((item) => (
-                    <li key={item}>{item}</li>
+                  {result.precautions.map((p, i) => (
+                    <li key={i}>{p}</li>
                   ))}
                 </ul>
-              </section>
-
-              <p className="disclaimer-banner">{result.disclaimer}</p>
+              </div>
             </div>
           ) : (
             <div className="empty-state">
-              <p className="empty-title">No prediction yet</p>
-              <p className="empty-copy">
-                Upload a file and run the analysis to see the predicted class,
-                confidence, probabilities, and basic precautions.
-              </p>
+              <div className="empty-icon">♢</div>
+              <p>Upload an image and run the analysis to view results.</p>
             </div>
           )}
-        </article>
-      </section>
+        </section>
+      </main>
 
-      <section className="condition-grid">
-        {supportedConditions.map((condition) => (
-          <article className="condition-card" key={condition}>
-            <span className="condition-name">{condition}</span>
-            <p>
-              The training notebook attempts to map attached Kaggle folders into this
-              canonical class. The deployed model only predicts classes present in
-              the exported `labels.json`.
-            </p>
-          </article>
-        ))}
+      {/* Disease Information Gallery */}
+      <section className="gallery-section">
+        <header className="gallery-header">
+          <h2 className="gallery-title">Condition Reference Guide</h2>
+          <p className="brand-subtitle">Clinical illustrations of the conditions categorized by our AI triage engine.</p>
+        </header>
+
+        <div className="gallery-grid">
+          {Object.entries(DISEASE_INFO).map(([key, info]) => (
+            <article className="disease-card" key={key}>
+              <div className="disease-image-container">
+                <img src={info.image} alt={key} className="disease-image" loading="lazy" />
+              </div>
+              <div className="disease-info">
+                <h3 className="disease-name">{key}</h3>
+                <p className="disease-desc">{info.description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
-    </main>
+    </div>
   );
 }
-
-export default Dashboard;
