@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import io
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -14,7 +15,8 @@ from app.database import init_db, close_db
 from app.inference import HuggingFaceError, predict_with_huggingface, validate_image_bytes
 from app.knowledge import DISCLAIMER, CLASS_GUIDANCE
 from app.auth import register_user, login_user, get_current_user, require_auth
-from app.history import save_scan, get_user_scans, get_scan_detail, get_user_scan_count
+from app.history import save_scan, get_user_scans, get_scan_detail, get_user_scan_count, update_scan_notes
+from app.reports import ReportGenerator
 
 
 # Allowed image file extensions (lowercase, with leading dot).
@@ -33,10 +35,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="NeuroDermAI API",
-    version="3.0.0",
+    version="3.0.1",
     description=(
         "Inference API for classifying skin conditions from images using a "
-        "DINOv2 model hosted on HuggingFace. Now with user accounts and scan history."
+        "DINOv2 model hosted on HuggingFace. Features user accounts, history, "
+        "and professional PDF report generation."
     ),
     lifespan=lifespan,
 )
@@ -50,7 +53,7 @@ app.add_middleware(
 )
 
 
-# ---------- Pydantic models for auth requests ----------
+# ---------- Pydantic models for requests ----------
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -60,6 +63,10 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class NotesRequest(BaseModel):
+    user_notes: str
 
 
 # ---------- Health / Metadata ----------
@@ -179,7 +186,7 @@ async def predict(
     return result
 
 
-# ---------- Scan History ----------
+# ---------- Scan History & Reports ----------
 @app.get("/history")
 async def history(
     user: dict[str, Any] = Depends(require_auth),
@@ -208,6 +215,51 @@ async def history_detail(
             detail="Scan not found.",
         )
     return scan
+
+
+@app.patch("/history/{scan_id}/notes")
+async def update_notes(
+    scan_id: int,
+    body: NotesRequest,
+    user: dict[str, Any] = Depends(require_auth),
+) -> dict:
+    success = await update_scan_notes(user["id"], scan_id, body.user_notes)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found or unauthorized.",
+        )
+    return {"status": "ok", "message": "Notes updated."}
+
+
+@app.get("/history/{scan_id}/report")
+async def get_report(
+    scan_id: int,
+    user: dict[str, Any] = Depends(require_auth),
+):
+    scan = await get_scan_detail(user["id"], scan_id)
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found.",
+        )
+    
+    generator = ReportGenerator(scan, user)
+    try:
+        pdf_bytes = generator.generate()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate PDF: {str(e)}",
+        )
+    
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=NeuroDermAI-Report-{scan_id}.pdf"
+        }
+    )
 
 
 # ---------- Serve Scan Images ----------

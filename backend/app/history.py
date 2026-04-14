@@ -32,13 +32,14 @@ async def save_scan(
     confidence = prediction_result.get("confidence", 0.0)
     top_3 = prediction_result.get("top_3", [])
     explanation = prediction_result.get("explanation", "")
+    precautions = prediction_result.get("precautions", [])
     disclaimer = prediction_result.get("disclaimer", "")
 
     db = await get_db()
     cursor = await db.execute(
         """INSERT INTO scans 
-           (user_id, image_filename, predicted_class, confidence, top_3_json, explanation, disclaimer)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           (user_id, image_filename, predicted_class, confidence, top_3_json, explanation, precautions, disclaimer)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             user_id,
             image_filename,
@@ -46,6 +47,7 @@ async def save_scan(
             confidence,
             json.dumps(top_3),
             explanation,
+            json.dumps(precautions),
             disclaimer,
         ),
     )
@@ -87,7 +89,7 @@ async def get_scan_detail(
     db = await get_db()
     cursor = await db.execute(
         """SELECT id, image_filename, predicted_class, confidence, 
-                  top_3_json, explanation, disclaimer, created_at
+                  top_3_json, explanation, precautions, user_notes, disclaimer, created_at
            FROM scans 
            WHERE id = ? AND user_id = ?""",
         (scan_id, user_id),
@@ -103,6 +105,13 @@ async def get_scan_detail(
         except json.JSONDecodeError:
             pass
 
+    precautions = []
+    if row["precautions"]:
+        try:
+            precautions = json.loads(row["precautions"])
+        except json.JSONDecodeError:
+            pass
+
     return {
         "id": row["id"],
         "image_filename": row["image_filename"],
@@ -110,9 +119,24 @@ async def get_scan_detail(
         "confidence": row["confidence"],
         "top_3": top_3,
         "explanation": row["explanation"],
+        "precautions": precautions,
+        "user_notes": row["user_notes"],
         "disclaimer": row["disclaimer"],
         "created_at": row["created_at"],
     }
+
+
+async def update_scan_notes(
+    user_id: int, scan_id: int, notes: str
+) -> bool:
+    """Update the user notes for a specific scan."""
+    db = await get_db()
+    cursor = await db.execute(
+        "UPDATE scans SET user_notes = ? WHERE id = ? AND user_id = ?",
+        (notes, scan_id, user_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def get_user_scan_count(user_id: int) -> int:

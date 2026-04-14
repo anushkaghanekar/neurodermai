@@ -967,6 +967,67 @@ h1, h2, h3, h4, h5, strong {
 .disclaimer-footer strong { color: var(--color-moderate); font-size: 0.95rem; }
 .disclaimer-footer em { font-style: italic; }
 
+/* ========== Reports & Notes ========== */
+.report-actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 12px 0;
+}
+
+.notes-textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.5;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.report-btn-group {
+  display: flex;
+  gap: 12px;
+}
+
+.history-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.history-download-btn {
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-top: -4px;
+}
+
+.history-download-btn:hover {
+  background: var(--btn-secondary-hover);
+  border-color: var(--accent-blue);
+  transform: scale(1.05);
+}
+
+.error-text {
+  color: var(--color-high);
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
 /* ========== Responsive ========== */
 @media (max-width: 960px) {
   .main-grid { grid-template-columns: 1fr; }

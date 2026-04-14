@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS scans (
     confidence REAL NOT NULL,
     top_3_json TEXT,
     explanation TEXT,
+    precautions TEXT,
+    user_notes TEXT,
     disclaimer TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

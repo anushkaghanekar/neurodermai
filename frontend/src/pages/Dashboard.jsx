@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { fetchModelMetadata, predictSkinCondition } from "../lib/api";
+import { fetchModelMetadata, predictSkinCondition, updateScanNotes, downloadScanReport } from "../lib/api";
 
 /* ---------- Display-label mapping (HF model label → UI) ---------- */
 const DISPLAY_LABELS = {
@@ -139,6 +139,11 @@ export default function Dashboard({ user }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  
+  // Notes and Reports state
+  const [userNotes, setUserNotes] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [reportError, setReportError] = useState("");
 
   // Camera state
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -217,6 +222,7 @@ export default function Dashboard({ user }) {
     try {
       const payload = await predictSkinCondition(selectedFile);
       setResult(payload);
+      setUserNotes(""); // Reset notes for new scan
       // Show "saved to history" toast if applicable
       if (payload.saved_to_history) {
         setShowToast(true);
@@ -224,6 +230,38 @@ export default function Dashboard({ user }) {
       }
     } catch (err) {
       setError(err.message || "Prediction failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleSaveNotes() {
+    if (!result?.scan_id) return;
+    setIsSavingNotes(true);
+    setReportError("");
+    try {
+      await updateScanNotes(result.scan_id, userNotes);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (err) {
+      setReportError(err.message || "Failed to save notes.");
+    } finally {
+      setIsSavingNotes(false);
+    }
+  }
+
+  async function handleDownloadReport() {
+    if (!result?.scan_id) return;
+    setIsLoading(true);
+    setReportError("");
+    try {
+      // Opt-in: save notes first if they've been typed
+      if (userNotes.trim()) {
+        await updateScanNotes(result.scan_id, userNotes);
+      }
+      await downloadScanReport(result.scan_id);
+    } catch (err) {
+      setReportError(err.message || "Failed to download report.");
     } finally {
       setIsLoading(false);
     }
@@ -479,6 +517,42 @@ export default function Dashboard({ user }) {
                 {result.disclaimer && (
                   <div className="banner banner-warning" style={{marginTop: "20px", marginBottom: 0}}>
                     <strong>⚕ Disclaimer: </strong> {result.disclaimer}
+                  </div>
+                )}
+
+                {/* Report and Notes Section */}
+                {result.scan_id && (
+                  <div className="report-actions fade-in" style={{marginTop: "24px"}}>
+                    <div className="divider" />
+                    <h4 className="section-title" style={{marginTop: "20px"}}>Patient Observations</h4>
+                    <p className="panel-description" style={{marginBottom: "12px"}}>
+                      Add symptoms or notes to include in your clinical report.
+                    </p>
+                    <textarea
+                      className="form-input notes-textarea"
+                      placeholder="e.g., Noticed redness 3 days ago, itchy during the night..."
+                      value={userNotes}
+                      onChange={(e) => setUserNotes(e.target.value)}
+                    />
+                    
+                    {reportError && <p className="error-text">{reportError}</p>}
+                    
+                    <div className="report-btn-group">
+                      <button 
+                        className={`btn btn-secondary ${isSavingNotes ? "btn-loading" : ""}`}
+                        onClick={handleSaveNotes}
+                        disabled={isSavingNotes || !userNotes.trim()}
+                      >
+                        Save Notes
+                      </button>
+                      <button 
+                        className={`btn btn-primary ${isLoading ? "btn-loading" : ""}`}
+                        onClick={handleDownloadReport}
+                        disabled={isLoading}
+                      >
+                        📄 Download Report (PDF)
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

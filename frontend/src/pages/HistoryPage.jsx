@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchHistory, getScanImageUrl } from "../lib/api";
+import { fetchHistory, getScanImageUrl, downloadScanReport } from "../lib/api";
 
 const DISPLAY_LABELS = {
   "Basal Cell Carcinoma": "Basal Cell Carcinoma",
@@ -121,9 +121,18 @@ export default function HistoryPage() {
                   </div>
                 )}
                 <div className="history-card-body">
-                  <h3 className="history-card-label">
-                    {displayLabel(scan.predicted_class)}
-                  </h3>
+                  <div className="history-card-header">
+                    <h3 className="history-card-label">
+                      {displayLabel(scan.predicted_class)}
+                    </h3>
+                    <button 
+                      className="history-download-btn"
+                      title="Download PDF Report"
+                      onClick={() => downloadScanReport(scan.id)}
+                    >
+                      📄
+                    </button>
+                  </div>
                   <div className="history-card-meta">
                     <span className="history-confidence">
                       {(scan.confidence * 100).toFixed(1)}% confidence

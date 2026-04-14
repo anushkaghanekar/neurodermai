@@ -91,7 +91,7 @@ export async function fetchCurrentUser() {
   return response.json();
 }
 
-// ---------- History ----------
+// ---------- History & Reports ----------
 export async function fetchHistory(limit = 20, offset = 0) {
   const response = await fetch(
     `${API_BASE_URL}/history?limit=${limit}&offset=${offset}`,
@@ -115,6 +115,43 @@ export async function fetchScanDetail(scanId) {
   }
 
   return response.json();
+}
+
+export async function updateScanNotes(scanId, notes) {
+  const response = await fetch(`${API_BASE_URL}/history/${scanId}/notes`, {
+    method: "PATCH",
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ user_notes: notes }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractError(response));
+  }
+
+  return response.json();
+}
+
+export async function downloadScanReport(scanId) {
+  const response = await fetch(`${API_BASE_URL}/history/${scanId}/report`, {
+    headers: authHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractError(response));
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `NeuroDermAI-Report-${scanId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export function getScanImageUrl(filename) {
