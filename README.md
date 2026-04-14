@@ -1,8 +1,8 @@
 # NeuroDermAI
 
-NeuroDermAI is a phase-1 skin image classification app with a React frontend, a FastAPI inference backend, and a Kaggle-ready TensorFlow training pipeline.
+NeuroDermAI is a skin image classification app with a React frontend, a FastAPI inference backend, and a Kaggle-ready TensorFlow training pipeline.
 
-The project is intentionally focused on common skin issues and educational use. It is not a medical diagnosis system.
+The project is intentionally focused on common skin conditions and educational use. It is not a medical diagnosis system.
 
 ## What Is In This Repo
 
@@ -12,42 +12,48 @@ The project is intentionally focused on common skin issues and educational use. 
 
 ## Canonical Classes
 
-The training flow is built around this practical class set:
+The training flow is built around this 7-class set:
 
 - `acne`
 - `eczema`
 - `psoriasis`
 - `fungal`
-- `warts`
+- `vitiligo`
+- `melanoma`
 - `normal`
 
-The Kaggle notebook maps safe folder aliases into these canonical labels when possible. If the attached dataset does not include healthy skin images, the exported `labels.json` will not include `normal`, and the deployed app will honestly omit that class from predictions.
+The Kaggle notebook maps folder-name aliases into these canonical labels when building the curated dataset. If the attached dataset does not include images for a given class, the exported `labels.json` will omit that class, and the deployed app will honestly reflect only the trained classes.
 
 ## Architecture
 
 - Frontend: React + Vite
 - Backend: FastAPI + TensorFlow/Keras
-- Training: Kaggle Notebook + TensorFlow/Keras + MobileNetV2
-- Model artifacts: `model/model.h5` and `model/labels.json`
+- Training: Kaggle Notebook + TensorFlow/Keras + EfficientNetB0
+- Model artifacts: `model/model.keras` and `model/labels.json`
 
 ## Training Pipeline
 
-The Kaggle notebook lives at [model/neurodermai_kaggle_training.ipynb](/Users/vedgharat/Projects/neurodermai/model/neurodermai_kaggle_training.ipynb).
+The Kaggle notebook lives at `model/neurodermai_training.ipynb`.
 
 It does the following:
 
-- reads image data from `/kaggle/input/...`
-- builds a clean curated directory under `/kaggle/working/curated_dataset/`
-- uses `image_dataset_from_directory`
-- resizes to `224x224`
-- applies augmentation
-- uses MobileNetV2 transfer learning
-- handles imbalance with class weights
-- uses `EarlyStopping`, `ModelCheckpoint`, and `ReduceLROnPlateau`
-- evaluates on a validation split
-- saves `/kaggle/working/model.h5`
-- saves `/kaggle/working/labels.json`
-- runs a sample prediction cell at the end
+- Scans all directories under `/kaggle/input/` recursively
+- Maps folder names to canonical labels using a comprehensive alias dictionary
+- Builds a clean, deduplicated curated directory under `/kaggle/working/curated_dataset/`
+- Uses `ImageDataGenerator` with augmentation
+- Resizes to `224×224`
+- Applies strong augmentation (rotation, shift, shear, zoom, flip, brightness)
+- Uses EfficientNetB0 transfer learning with two-phase training:
+  - **Phase 1:** Frozen backbone, train head only (15 epochs)
+  - **Phase 2:** Fine-tune top backbone layers (30 epochs)
+- Handles imbalance with `sklearn` class weights
+- Uses `EarlyStopping`, `ModelCheckpoint`, and `ReduceLROnPlateau`
+- Evaluates with classification report, confusion matrix, and top-3 prediction demo
+- Exports:
+  - `model.keras` – trained model
+  - `labels.json` – class names + metadata
+  - `class_counts.json` – per-class image counts
+  - `training_history.json` – epoch-by-epoch metrics
 
 ### Expected Dataset Shape
 
@@ -59,7 +65,8 @@ The notebook is flexible about nesting. These are both acceptable:
   eczema/
   psoriasis/
   fungal/
-  warts/
+  vitiligo/
+  melanoma/
   normal/
 ```
 
@@ -73,18 +80,17 @@ The notebook is flexible about nesting. These are both acceptable:
     eczema/
 ```
 
-The notebook scans path segments and tries to map them into the canonical class set. Use clear folder names wherever possible.
+The notebook scans every path segment and tries to map it into the canonical class set using the alias dictionary. Use clear folder names wherever possible.
 
 ### Kaggle Steps
 
 1. Create a new Kaggle Notebook and enable GPU.
-2. Upload or attach your skin image dataset under `/kaggle/input/...`.
-3. Upload this repository or copy the notebook file into Kaggle.
-4. Open [model/neurodermai_kaggle_training.ipynb](/Users/vedgharat/Projects/neurodermai/model/neurodermai_kaggle_training.ipynb).
-5. If autodetection does not find the right dataset, set `DATASET_DIR` in the notebook to the correct `/kaggle/input/...` path.
-6. Run all cells.
-7. Download `/kaggle/working/model.h5` and `/kaggle/working/labels.json`.
-8. Place both files in [model/](/Users/vedgharat/Projects/neurodermai/model).
+2. Upload or attach your skin image datasets under `/kaggle/input/...`.
+3. Upload the notebook file or push via `kaggle kernels push`.
+4. Open `model/neurodermai_training.ipynb`.
+5. Run all cells.
+6. Download `model.keras` and `labels.json` from `/kaggle/working/`.
+7. Place both files in `model/`.
 
 ### Healthy Skin / `normal` Class Note
 
@@ -92,7 +98,7 @@ If your Kaggle input does not contain healthy images, the notebook will print a 
 
 ## Backend Setup
 
-The backend code lives in [backend/app/main.py](/Users/vedgharat/Projects/neurodermai/backend/app/main.py).
+The backend code lives in `backend/app/main.py`.
 
 ### Install
 
@@ -105,10 +111,10 @@ pip install -r requirements.txt
 
 ### Environment
 
-Copy [backend/.env.example](/Users/vedgharat/Projects/neurodermai/backend/.env.example) if you want custom paths or CORS origins.
+Copy `backend/.env.example` if you want custom paths or CORS origins.
 
 ```bash
-MODEL_PATH=model/model.h5
+MODEL_PATH=model/model.keras
 LABELS_PATH=model/labels.json
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 MAX_UPLOAD_MB=10
@@ -134,11 +140,11 @@ uvicorn app.main:app --reload --port 8000
 
 `/metadata` reports whether the backend has successfully loaded a real Kaggle-exported model and which classes exist in `labels.json`.
 
-Example response:
+Example `/predict` response:
 
 ```json
 {
-  "prediction": "eczema",
+  "predicted_class": "eczema",
   "confidence": 0.873421,
   "top_3": [
     { "label": "eczema", "probability": 0.873421 },
@@ -150,8 +156,11 @@ Example response:
     "eczema": 0.873421,
     "psoriasis": 0.081213,
     "fungal": 0.028744,
-    "warts": 0.0105
+    "vitiligo": 0.0,
+    "melanoma": 0.0,
+    "normal": 0.0105
   },
+  "all_class_probabilities": { "...same as probabilities..." },
   "explanation": "Educational summary for the predicted class.",
   "precautions": [
     "Short educational precaution 1",
@@ -163,7 +172,7 @@ Example response:
 
 ## Frontend Setup
 
-The React client lives in [frontend/src/pages/Dashboard.jsx](/Users/vedgharat/Projects/neurodermai/frontend/src/pages/Dashboard.jsx).
+The React client lives in `frontend/src/pages/Dashboard.jsx`.
 
 ### Install
 
@@ -174,7 +183,7 @@ npm install
 
 ### Environment
 
-Copy [frontend/.env.example](/Users/vedgharat/Projects/neurodermai/frontend/.env.example) and point it at the backend:
+Copy `frontend/.env.example` and point it at the backend:
 
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
@@ -191,7 +200,7 @@ Open the Vite URL shown in the terminal, typically `http://localhost:5173`.
 
 ## Local End-to-End Run
 
-1. Train the model in Kaggle and place `model.h5` and `labels.json` in [model/](/Users/vedgharat/Projects/neurodermai/model).
+1. Train the model in Kaggle and place `model.keras` and `labels.json` in `model/`.
 2. Start the backend on port `8000`.
 3. Start the frontend on port `5173`.
 4. Upload an image in the browser and review the returned prediction, confidence, top-3 list, probabilities, explanation, and precautions.
@@ -205,10 +214,10 @@ The project is split so it can be deployed cleanly:
 
 Recommended deployment notes:
 
-- keep `model.h5` and `labels.json` together from the same training run
-- set `VITE_API_BASE_URL` to the deployed backend URL
-- set backend `CORS_ORIGINS` to the deployed frontend origin
-- verify the host supports TensorFlow runtime requirements before deploying
+- Keep `model.keras` and `labels.json` together from the same training run
+- Set `VITE_API_BASE_URL` to the deployed backend URL
+- Set backend `CORS_ORIGINS` to the deployed frontend origin
+- Verify the host supports TensorFlow runtime requirements before deploying
 
 ## Reproducibility Notes
 

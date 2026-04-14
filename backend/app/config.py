@@ -1,40 +1,31 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-
-def _resolve_project_path(raw_path: str, default: Path) -> Path:
-    candidate = Path(raw_path).expanduser()
-    if candidate.is_absolute():
-        return candidate
-    return (PROJECT_ROOT / raw_path).resolve() if raw_path else default.resolve()
+# Explicitly load .env file from the backend directory
+load_dotenv(PROJECT_ROOT / "backend" / ".env")
 
 
 @dataclass(frozen=True)
 class Settings:
-    model_path: Path
-    labels_path: Path
+    hf_model_id: str
+    hf_token: str | None
     cors_origins: list[str]
     max_upload_bytes: int
 
 
 def get_settings() -> Settings:
-    default_model_path = (PROJECT_ROOT / "model" / "model.h5").resolve()
-    default_labels_path = (PROJECT_ROOT / "model" / "labels.json").resolve()
-
-    model_path = _resolve_project_path(
-        os.getenv("MODEL_PATH", "model/model.h5"),
-        default_model_path,
+    hf_model_id = os.getenv(
+        "HF_MODEL_ID",
+        "Jayanth2002/dinov2-base-finetuned-SkinDisease",
     )
-    labels_path = _resolve_project_path(
-        os.getenv("LABELS_PATH", "model/labels.json"),
-        default_labels_path,
-    )
+    hf_token = os.getenv("HF_TOKEN") or None
 
     raw_origins = os.getenv(
         "CORS_ORIGINS",
@@ -44,8 +35,8 @@ def get_settings() -> Settings:
     max_upload_mb = int(os.getenv("MAX_UPLOAD_MB", "10"))
 
     return Settings(
-        model_path=model_path,
-        labels_path=labels_path,
+        hf_model_id=hf_model_id,
+        hf_token=hf_token,
         cors_origins=cors_origins,
         max_upload_bytes=max_upload_mb * 1024 * 1024,
     )

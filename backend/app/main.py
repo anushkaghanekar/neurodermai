@@ -1,47 +1,27 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.inference import (
-    ArtifactError,
-    get_model_metadata,
-    get_predictor,
-    get_runtime_settings,
-    warmup_model,
-)
-from app.knowledge import DISCLAIMER
+from app.config import get_settings
+from app.inference import HuggingFaceError, predict_with_huggingface, validate_image_bytes
+from app.knowledge import DISCLAIMER, CLASS_GUIDANCE
 
 
-settings = get_runtime_settings()
-runtime_state = {
-    "ready": False,
-    "startup_error": None,
-}
+# Allowed image file extensions (lowercase, with leading dot).
+_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif"}
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    try:
-        warmup_model()
-        runtime_state["ready"] = True
-        runtime_state["startup_error"] = None
-    except ArtifactError as exc:
-        runtime_state["ready"] = False
-        runtime_state["startup_error"] = str(exc)
-    yield
-
+settings = get_settings()
 
 app = FastAPI(
     title="NeuroDermAI API",
-    version="1.0.0",
+    version="2.0.0",
     description=(
-        "Inference API for classifying common skin conditions from images using a "
-        "Keras model trained in Kaggle."
+        "Inference API for classifying skin conditions from images using a "
+        "DINOv2 model hosted on HuggingFace."
     ),
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -52,54 +32,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
 def health_check() -> dict[str, str | bool | None]:
+    has_token = settings.hf_token is not None
     return {
-        "status": "ok" if runtime_state["ready"] else "degraded",
-        "ready": runtime_state["ready"],
-        "error": runtime_state["startup_error"],
+        "status": "ok",
+        "model_id": settings.hf_model_id,
+        "hf_token_configured": has_token,
     }
 
 
 @app.get("/metadata")
 def metadata() -> dict:
-    try:
-        model_metadata = get_model_metadata()
-        class_names = model_metadata.class_names
-        image_size = model_metadata.image_size
-        backbone = model_metadata.backbone
-        validation_split = model_metadata.validation_split
-        metadata_error = None
-    except ArtifactError as exc:
-        class_names = []
-        image_size = [224, 224]
-        backbone = None
-        validation_split = None
-        metadata_error = str(exc)
-
     return {
-        "ready": runtime_state["ready"],
-        "class_names": class_names,
-        "image_size": image_size,
-        "backbone": backbone,
-        "validation_split": validation_split,
+        "ready": True,
+        "model_id": settings.hf_model_id,
+        "class_names": sorted(CLASS_GUIDANCE.keys()),
+        "num_classes": len(CLASS_GUIDANCE),
+        "backbone": "DINOv2 (facebook/dinov2-base)",
         "disclaimer": DISCLAIMER,
-        "error": runtime_state["startup_error"] or metadata_error,
+        "hf_token_configured": settings.hf_token is not None,
+        "error": None,
     }
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)) -> dict:
-    if not runtime_state["ready"]:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=runtime_state["startup_error"] or "Model is not ready yet.",
-        )
-
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No filename was provided.",
+        )
+
+    # Content-type validation
+    if file.content_type and not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Expected an image file but received '{file.content_type}'. "
+                "Please upload a JPEG, PNG, or WebP image."
+            ),
+        )
+
+    # Extension validation
+    ext = Path(file.filename).suffix.lower()
+    if ext and ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"File extension '{ext}' is not supported. "
+                "Please upload a JPEG, PNG, WebP, GIF, BMP, or TIFF image."
+            ),
         )
 
     content = await file.read()
@@ -119,15 +103,14 @@ async def predict(file: UploadFile = File(...)) -> dict:
         )
 
     try:
-        predictor = get_predictor()
-        return predictor.predict(content)
+        return await predict_with_huggingface(content, settings)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-    except ArtifactError as exc:
+    except HuggingFaceError as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc

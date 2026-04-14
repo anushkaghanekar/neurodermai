@@ -1,18 +1,39 @@
+# OS & Editor
 .DS_Store
+.idea/
+.vscode/
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Environment Variables
 .env
 .env.*
-.venv/
-venv/
-backend/.venv/
-backend/.mypy_cache/
-backend/.ruff_cache/
+!.env.example
+
+# Frontend (Node/Vite)
+frontend/node_modules/
 frontend/dist/
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.production.local
-model/model.h5
-model/labels.json
-model/curated_dataset/
+frontend/dist-ssr/
+frontend/*.local
+frontend/.eslintcache
+
+# Models & Data (ignored in case recreated)
+model/
+/model/
+*.h5
+*.keras
+*.json
+!kernel-metadata.json
+!labels.json
+!backend/labels.json
+curated_dataset/

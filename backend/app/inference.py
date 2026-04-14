@@ -1,164 +1,134 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass
-from functools import lru_cache
+import httpx
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 
-import numpy as np
 from PIL import Image, UnidentifiedImageError
-from tensorflow import keras
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 from app.config import Settings, get_settings
 from app.knowledge import DISCLAIMER, get_guidance
 
 
-IMAGE_SIZE = (224, 224)
+# HuggingFace Inference API endpoint (new router format)
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/{model_id}"
+
+# Magic byte signatures for supported image formats.
+_IMAGE_MAGIC = [
+    (b"\xff\xd8\xff", "JPEG"),
+    (b"\x89PNG\r\n\x1a\n", "PNG"),
+    (b"RIFF", "WebP"),
+    (b"GIF87a", "GIF"),
+    (b"GIF89a", "GIF"),
+    (b"BM", "BMP"),
+    (b"II", "TIFF"),
+    (b"MM", "TIFF"),
+]
 
 
-class ArtifactError(RuntimeError):
-    """Raised when the trained model artifacts are missing or invalid."""
+class HuggingFaceError(RuntimeError):
+    """Raised when the HuggingFace API returns an error."""
 
 
-@dataclass(frozen=True)
-class ModelMetadata:
-    class_names: list[str]
-    image_size: list[int]
-    backbone: str | None
-    validation_split: float | None
+def validate_image_bytes(content: bytes) -> None:
+    """Validate that raw bytes look like a real image file."""
+    if len(content) < 8:
+        raise ValueError("Uploaded file is too small to be a valid image.")
 
+    for magic, _fmt in _IMAGE_MAGIC:
+        if content[: len(magic)] == magic:
+            return
 
-def _load_labels_payload(labels_path: Path) -> Any:
-    if not labels_path.exists():
-        raise ArtifactError(
-            f"Label mapping not found at {labels_path}. Download labels.json from Kaggle "
-            "and place it in the model directory before starting the backend."
-        )
-
-    with labels_path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _load_class_names(labels_path: Path) -> list[str]:
-    payload = _load_labels_payload(labels_path)
-
-    if isinstance(payload, dict) and isinstance(payload.get("class_names"), list):
-        class_names = payload["class_names"]
-    elif isinstance(payload, list):
-        class_names = payload
-    else:
-        raise ArtifactError(
-            "labels.json must contain either a JSON array of labels or an object with "
-            "a 'class_names' array."
-        )
-
-    if not class_names:
-        raise ArtifactError("labels.json does not contain any classes.")
-
-    return [str(class_name) for class_name in class_names]
-
-
-def get_model_metadata() -> ModelMetadata:
-    settings = get_settings()
-    payload = _load_labels_payload(settings.labels_path)
-    class_names = _load_class_names(settings.labels_path)
-
-    if isinstance(payload, dict):
-        image_size = payload.get("image_size", list(IMAGE_SIZE))
-        backbone = payload.get("backbone")
-        validation_split = payload.get("validation_split")
-    else:
-        image_size = list(IMAGE_SIZE)
-        backbone = None
-        validation_split = None
-
-    return ModelMetadata(
-        class_names=class_names,
-        image_size=[int(value) for value in image_size],
-        backbone=str(backbone) if backbone else None,
-        validation_split=float(validation_split) if validation_split is not None else None,
+    raise ValueError(
+        "Uploaded file does not appear to be a supported image format. "
+        "Please upload a JPEG, PNG, WebP, GIF, BMP, or TIFF file."
     )
 
 
-def _load_model(model_path: Path) -> keras.Model:
-    if not model_path.exists():
-        raise ArtifactError(
-            f"Model file not found at {model_path}. Train the notebook on Kaggle, "
-            "download /kaggle/working/model.h5, and place it in the model directory."
-        )
-
-    return keras.models.load_model(model_path)
-
-
-@lru_cache(maxsize=1)
-def get_predictor() -> "Predictor":
-    settings = get_settings()
-    model = _load_model(settings.model_path)
-    class_names = _load_class_names(settings.labels_path)
-    return Predictor(model=model, class_names=class_names)
-
-
-def preprocess_image(image_bytes: bytes) -> np.ndarray:
+def _verify_readable_image(content: bytes) -> None:
+    """Verify PIL can actually decode the image bytes."""
     try:
-        image = Image.open(BytesIO(image_bytes)).convert("RGB")
+        img = Image.open(BytesIO(content))
+        img.verify()
     except UnidentifiedImageError as exc:
         raise ValueError("Uploaded file is not a valid image.") from exc
+    except Exception as exc:
+        raise ValueError(
+            "Could not open the uploaded file as an image. "
+            "The file may be corrupted or in an unsupported format."
+        ) from exc
 
-    image = image.resize(IMAGE_SIZE)
-    image_array = np.asarray(image, dtype=np.float32)
-    image_array = preprocess_input(image_array)
-    return np.expand_dims(image_array, axis=0)
 
+async def predict_with_huggingface(
+    image_bytes: bytes,
+    settings: Settings,
+) -> dict[str, Any]:
+    """Send an image to the HuggingFace Inference API and return structured results."""
 
-class Predictor:
-    def __init__(self, model: keras.Model, class_names: list[str]) -> None:
-        self.model = model
-        self.class_names = class_names
+    # Validate image before sending
+    validate_image_bytes(image_bytes)
+    _verify_readable_image(image_bytes)
 
-    def predict(self, image_bytes: bytes) -> dict[str, Any]:
-        input_tensor = preprocess_image(image_bytes)
-        probabilities = self.model.predict(input_tensor, verbose=0)[0]
+    url = HF_API_URL.format(model_id=settings.hf_model_id)
 
-        if len(probabilities) != len(self.class_names):
-            raise ArtifactError(
-                "Model output shape does not match labels.json. Re-export both files "
-                "from the same Kaggle training run."
-            )
+    headers: dict[str, str] = {}
+    if settings.hf_token:
+        headers["Authorization"] = f"Bearer {settings.hf_token}"
 
-        probability_map = {
-            label: round(float(score), 6)
-            for label, score in zip(self.class_names, probabilities)
-        }
-
-        ranked = sorted(
-            (
-                {"label": label, "probability": round(float(score), 6)}
-                for label, score in zip(self.class_names, probabilities)
-            ),
-            key=lambda item: item["probability"],
-            reverse=True,
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            url,
+            content=image_bytes,
+            headers={
+                **headers,
+                "Content-Type": "application/octet-stream",
+            },
         )
 
-        top_prediction = ranked[0]
-        guidance = get_guidance(top_prediction["label"])
+    if response.status_code == 401:
+        raise HuggingFaceError(
+            "HuggingFace API authentication failed. Set a valid HF_TOKEN in your environment."
+        )
+    if response.status_code == 503:
+        # Model is loading
+        body = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+        estimated = body.get("estimated_time", "unknown")
+        raise HuggingFaceError(
+            f"The model is currently loading on HuggingFace servers. "
+            f"Estimated wait: {estimated}s. Please try again in a moment."
+        )
+    if response.status_code != 200:
+        detail = response.text[:300]
+        raise HuggingFaceError(
+            f"HuggingFace API returned status {response.status_code}: {detail}"
+        )
 
-        return {
-            "prediction": top_prediction["label"],
-            "confidence": top_prediction["probability"],
-            "top_3": ranked[:3],
-            "probabilities": probability_map,
-            "explanation": guidance["explanation"],
-            "precautions": guidance["precautions"],
-            "disclaimer": DISCLAIMER,
-        }
+    # Parse response: list of {label, score} dicts, sorted by score descending
+    raw_predictions = response.json()
+    if not isinstance(raw_predictions, list) or len(raw_predictions) == 0:
+        raise HuggingFaceError(
+            "Unexpected response format from HuggingFace API."
+        )
 
+    # Build structured output
+    ranked = [
+        {"label": item["label"], "probability": round(float(item["score"]), 6)}
+        for item in raw_predictions
+    ]
+    ranked.sort(key=lambda x: x["probability"], reverse=True)
 
-def warmup_model() -> None:
-    get_predictor()
+    top_prediction = ranked[0]
+    guidance = get_guidance(top_prediction["label"])
 
+    probability_map = {item["label"]: item["probability"] for item in ranked}
 
-def get_runtime_settings() -> Settings:
-    return get_settings()
+    return {
+        "predicted_class": top_prediction["label"],
+        "confidence": top_prediction["probability"],
+        "top_3": ranked[:3],
+        "probabilities": probability_map,
+        "all_class_probabilities": probability_map,
+        "explanation": guidance["explanation"],
+        "precautions": guidance["precautions"],
+        "disclaimer": DISCLAIMER,
+    }
