@@ -140,6 +140,21 @@ export default function Dashboard() {
   });
   const [metadataError, setMetadataError] = useState("");
 
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("nd_theme");
+    if (saved) return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("nd_theme", theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }
+
   useEffect(() => {
     let active = true;
     async function loadMetadata() {
@@ -220,7 +235,26 @@ export default function Dashboard() {
 
   return (
     <div className="app-shell">
-      <header className="brand-header">
+      <header className="brand-header" style={{ position: "relative" }}>
+        <button 
+          onClick={toggleTheme} 
+          className="theme-toggle"
+          aria-label="Toggle theme"
+          style={{
+            position: "absolute",
+            right: 0,
+            top: 0,
+            background: "transparent",
+            border: "1px solid var(--panel-border)",
+            color: "var(--text-primary)",
+            padding: "8px 12px",
+            borderRadius: "99px",
+            cursor: "pointer",
+            fontSize: "1.2rem"
+          }}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
         <h1 className="brand-title">NeuroDermAI</h1>
         <p className="brand-subtitle">
           AI-powered skin condition screening powered by DINOv2. Covers 31 dermatological conditions.
