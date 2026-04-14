@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, UploadFile, status, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from app.config import get_settings
+from app.database import init_db, close_db
 from app.inference import HuggingFaceError, predict_with_huggingface, validate_image_bytes
 from app.knowledge import DISCLAIMER, CLASS_GUIDANCE
+from app.auth import register_user, login_user, get_current_user, require_auth
+from app.history import save_scan, get_user_scans, get_scan_detail, get_user_scan_count
 
 
 # Allowed image file extensions (lowercase, with leading dot).
@@ -15,24 +22,47 @@ _ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff"
 
 settings = get_settings()
 
+
+# ---------- Lifespan: DB init / teardown ----------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+    await close_db()
+
+
 app = FastAPI(
     title="NeuroDermAI API",
-    version="2.0.0",
+    version="3.0.0",
     description=(
         "Inference API for classifying skin conditions from images using a "
-        "DINOv2 model hosted on HuggingFace."
+        "DINOv2 model hosted on HuggingFace. Now with user accounts and scan history."
     ),
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+# ---------- Pydantic models for auth requests ----------
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+# ---------- Health / Metadata ----------
 @app.get("/health")
 def health_check() -> dict[str, str | bool | None]:
     has_token = settings.hf_token is not None
@@ -57,8 +87,28 @@ def metadata() -> dict:
     }
 
 
+# ---------- Auth Endpoints ----------
+@app.post("/auth/register")
+async def register(body: RegisterRequest) -> dict:
+    return await register_user(body.email, body.password, body.name)
+
+
+@app.post("/auth/login")
+async def login(body: LoginRequest) -> dict:
+    return await login_user(body.email, body.password)
+
+
+@app.get("/auth/me")
+async def get_me(user: dict[str, Any] = Depends(require_auth)) -> dict:
+    return {"user": user}
+
+
+# ---------- Predict ----------
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)) -> dict:
+async def predict(
+    file: UploadFile = File(...),
+    user: dict[str, Any] | None = Depends(get_current_user),
+) -> dict:
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -103,7 +153,7 @@ async def predict(file: UploadFile = File(...)) -> dict:
         )
 
     try:
-        return await predict_with_huggingface(content, settings)
+        result = await predict_with_huggingface(content, settings)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -114,3 +164,60 @@ async def predict(file: UploadFile = File(...)) -> dict:
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+    # Auto-save to history if user is authenticated
+    saved_to_history = False
+    if user is not None:
+        try:
+            scan_id = await save_scan(user["id"], content, result)
+            result["scan_id"] = scan_id
+            saved_to_history = True
+        except Exception:
+            pass  # Don't fail the prediction if history save fails
+
+    result["saved_to_history"] = saved_to_history
+    return result
+
+
+# ---------- Scan History ----------
+@app.get("/history")
+async def history(
+    user: dict[str, Any] = Depends(require_auth),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    scans = await get_user_scans(user["id"], limit=limit, offset=offset)
+    total = await get_user_scan_count(user["id"])
+    return {
+        "scans": scans,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@app.get("/history/{scan_id}")
+async def history_detail(
+    scan_id: int,
+    user: dict[str, Any] = Depends(require_auth),
+) -> dict:
+    scan = await get_scan_detail(user["id"], scan_id)
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found.",
+        )
+    return scan
+
+
+# ---------- Serve Scan Images ----------
+@app.get("/scan-images/{filename}")
+async def serve_scan_image(filename: str) -> FileResponse:
+    """Serve saved scan images."""
+    image_path = settings.scan_uploads_dir / filename
+    if not image_path.exists() or not image_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found.",
+        )
+    return FileResponse(image_path, media_type="image/jpeg")

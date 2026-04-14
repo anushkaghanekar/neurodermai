@@ -37,3 +37,7 @@ model/
 !labels.json
 !backend/labels.json
 curated_dataset/
+
+# Database & Scan Uploads
+*.db
+backend/scan_uploads/
