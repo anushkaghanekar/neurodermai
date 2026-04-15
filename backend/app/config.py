@@ -45,7 +45,7 @@ def get_settings() -> Settings:
         "CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173",
     )
-    cors_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    cors_origins = [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
     max_upload_mb = int(os.getenv("MAX_UPLOAD_MB", "10"))
 
     # JWT settings
