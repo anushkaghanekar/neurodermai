@@ -21,6 +21,7 @@ class Settings:
     hf_chat_model: str
     database_url: str
     cloudinary_url: str | None
+    cors_origins: list[str]
     max_upload_bytes: int
     # Auth
     jwt_secret: str
