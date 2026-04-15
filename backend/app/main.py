@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.config import get_settings
-from app.database import init_db, close_db
+from app.database import init_db, close_db, get_db
 from app.inference import HuggingFaceError, predict_with_huggingface, validate_image_bytes
 from app.knowledge import DISCLAIMER, CLASS_GUIDANCE
 from app.auth import register_user, login_user, get_current_user, require_auth
