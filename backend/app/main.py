@@ -75,10 +75,23 @@ class ChatRequest(BaseModel):
 
 # ---------- Health / Metadata ----------
 @app.get("/health")
-def health_check() -> dict[str, str | bool | None]:
+async def health_check() -> dict[str, Any]:
     has_token = settings.hf_token is not None
+    
+    # Check DB connection
+    db_status = "error"
+    try:
+        pool = await get_db()
+        async with pool.acquire() as conn:
+            await conn.execute("SELECT 1")
+            db_status = "connected (PostgreSQL)"
+    except Exception as e:
+        db_status = f"connection_failed: {str(e)}"
+
     return {
         "status": "ok",
+        "database": db_status,
+        "image_storage": "Cloudinary" if settings.cloudinary_url else "local",
         "model_id": settings.hf_model_id,
         "hf_token_configured": has_token,
     }
