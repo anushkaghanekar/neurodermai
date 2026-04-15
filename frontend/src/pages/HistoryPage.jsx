@@ -42,7 +42,9 @@ function displayLabel(key) {
 
 function formatDate(dateStr) {
   try {
-    const d = new Date(dateStr + "Z"); // treat as UTC
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -111,10 +113,10 @@ export default function HistoryPage() {
           <div className="history-grid">
             {scans.map((scan) => (
               <article className="history-card glass-panel" key={scan.id}>
-                {scan.image_filename && (
+                {(scan.image_url || scan.image_filename) && (
                   <div className="history-thumb-container">
                     <img
-                      src={getScanImageUrl(scan.image_filename)}
+                      src={scan.image_url || getScanImageUrl(scan.image_filename)}
                       alt="Scan"
                       className="history-thumb"
                       loading="lazy"
