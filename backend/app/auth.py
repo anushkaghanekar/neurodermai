@@ -55,7 +55,7 @@ def _decode_token(token: str, settings: Settings) -> dict[str, Any]:
 
 async def register_user(email: str, password: str, name: str) -> dict[str, Any]:
     """Register a new user and return a JWT token."""
-    email = email.strip().lower()
+    email = email.lower().strip()
     name = name.strip()
 
     if not _EMAIL_RE.match(email):
@@ -74,24 +74,21 @@ async def register_user(email: str, password: str, name: str) -> dict[str, Any]:
             detail="Name is required.",
         )
 
-    db = await get_db()
+    pool = await get_db()
+    async with pool.acquire() as db:
+        # Check if user already exists
+        existing = await db.fetchrow("SELECT id FROM users WHERE email = $1", email)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists.",
+            )
 
-    # Check if user already exists
-    cursor = await db.execute("SELECT id FROM users WHERE email = ?", (email,))
-    existing = await cursor.fetchone()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
+        password_hash = _hash_password(password)
+        user_id = await db.fetchval(
+            "INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id",
+            email, name, password_hash
         )
-
-    password_hash = _hash_password(password)
-    cursor = await db.execute(
-        "INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)",
-        (email, name, password_hash),
-    )
-    await db.commit()
-    user_id = cursor.lastrowid
 
     settings = get_settings()
     token = _create_token(user_id, email, settings)
@@ -104,13 +101,13 @@ async def register_user(email: str, password: str, name: str) -> dict[str, Any]:
 
 async def login_user(email: str, password: str) -> dict[str, Any]:
     """Authenticate a user and return a JWT token."""
-    email = email.strip().lower()
+    email = email.lower().strip()
 
-    db = await get_db()
-    cursor = await db.execute(
-        "SELECT id, email, name, password_hash FROM users WHERE email = ?", (email,)
-    )
-    user = await cursor.fetchone()
+    pool = await get_db()
+    async with pool.acquire() as db:
+        user = await db.fetchrow(
+            "SELECT id, email, name, password_hash FROM users WHERE email = $1", email
+        )
 
     if not user or not _verify_password(password, user["password_hash"]):
         raise HTTPException(
@@ -130,11 +127,7 @@ async def login_user(email: str, password: str) -> dict[str, Any]:
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> dict[str, Any] | None:
-    """FastAPI dependency — returns user dict if authenticated, None otherwise.
-
-    This is non-strict: unauthenticated requests still proceed (for the predict
-    endpoint which works with or without auth).
-    """
+    """FastAPI dependency — returns user dict if authenticated, None otherwise."""
     if credentials is None:
         return None
 
@@ -145,11 +138,12 @@ async def get_current_user(
     if user_id is None:
         return None
 
-    db = await get_db()
-    cursor = await db.execute(
-        "SELECT id, email, name FROM users WHERE id = ?", (user_id,)
-    )
-    user = await cursor.fetchone()
+    pool = await get_db()
+    async with pool.acquire() as db:
+        user = await db.fetchrow(
+            "SELECT id, email, name FROM users WHERE id = $1", user_id
+        )
+    
     if not user:
         return None
 
@@ -176,11 +170,12 @@ async def require_auth(
             detail="Invalid token payload.",
         )
 
-    db = await get_db()
-    cursor = await db.execute(
-        "SELECT id, email, name FROM users WHERE id = ?", (user_id,)
-    )
-    user = await cursor.fetchone()
+    pool = await get_db()
+    async with pool.acquire() as db:
+        user = await db.fetchrow(
+            "SELECT id, email, name FROM users WHERE id = $1", user_id
+        )
+    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

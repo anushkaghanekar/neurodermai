@@ -2,12 +2,26 @@
 from __future__ import annotations
 
 import json
-import uuid
-from pathlib import Path
+import asyncio
+import cloudinary.uploader
 from typing import Any
 
 from app.config import get_settings
 from app.database import get_db
+
+
+async def _upload_to_cloudinary(image_bytes: bytes) -> str:
+    """Upload image to Cloudinary and return the secure URL."""
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: cloudinary.uploader.upload(
+            image_bytes,
+            folder="neurodermai_scans",
+            resource_type="image"
+        )
+    )
+    return result["secure_url"]
 
 
 async def save_scan(
@@ -15,17 +29,15 @@ async def save_scan(
     image_bytes: bytes,
     prediction_result: dict[str, Any],
 ) -> int:
-    """Save a scan record and the image thumbnail. Returns the scan ID."""
+    """Save a scan record and upload the image to Cloudinary. Returns the scan ID."""
     settings = get_settings()
-    settings.scan_uploads_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save image to disk
-    image_filename = f"{uuid.uuid4().hex}.jpg"
-    image_path = settings.scan_uploads_dir / image_filename
-
-    # Save a copy of the original image
-    with open(image_path, "wb") as f:
-        f.write(image_bytes)
+    
+    # Upload to Cloudinary if configured, else fallback to local placeholder (for robustness)
+    if settings.cloudinary_url:
+        image_url = await _upload_to_cloudinary(image_bytes)
+    else:
+        # Fallback placeholder (this shouldn't happen in production)
+        image_url = "https://via.placeholder.com/400x400.png?text=Cloudinary+Not+Configured"
 
     # Extract fields from prediction result
     predicted_class = prediction_result.get("predicted_class", "")
@@ -35,48 +47,47 @@ async def save_scan(
     precautions = prediction_result.get("precautions", [])
     disclaimer = prediction_result.get("disclaimer", "")
 
-    db = await get_db()
-    cursor = await db.execute(
-        """INSERT INTO scans 
-           (user_id, image_filename, predicted_class, confidence, top_3_json, explanation, precautions, disclaimer)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
+    pool = await get_db()
+    async with pool.acquire() as db:
+        scan_id = await db.fetchval(
+            """INSERT INTO scans 
+               (user_id, image_url, predicted_class, confidence, top_3_json, explanation, precautions, disclaimer)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               RETURNING id""",
             user_id,
-            image_filename,
+            image_url,
             predicted_class,
             confidence,
             json.dumps(top_3),
             explanation,
             json.dumps(precautions),
             disclaimer,
-        ),
-    )
-    await db.commit()
-    return cursor.lastrowid
+        )
+    return scan_id
 
 
 async def get_user_scans(
     user_id: int, limit: int = 20, offset: int = 0
 ) -> list[dict[str, Any]]:
     """Retrieve paginated scan history for a user."""
-    db = await get_db()
-    cursor = await db.execute(
-        """SELECT id, image_filename, predicted_class, confidence, created_at
-           FROM scans 
-           WHERE user_id = ?
-           ORDER BY created_at DESC
-           LIMIT ? OFFSET ?""",
-        (user_id, limit, offset),
-    )
-    rows = await cursor.fetchall()
+    pool = await get_db()
+    async with pool.acquire() as db:
+        rows = await db.fetch(
+            """SELECT id, image_url, predicted_class, confidence, created_at
+               FROM scans 
+               WHERE user_id = $1
+               ORDER BY created_at DESC
+               LIMIT $2 OFFSET $3""",
+            user_id, limit, offset
+        )
 
     return [
         {
             "id": row["id"],
-            "image_filename": row["image_filename"],
+            "image_url": row["image_url"],
             "predicted_class": row["predicted_class"],
             "confidence": row["confidence"],
-            "created_at": row["created_at"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
         }
         for row in rows
     ]
@@ -86,43 +97,42 @@ async def get_scan_detail(
     user_id: int, scan_id: int
 ) -> dict[str, Any] | None:
     """Retrieve full details for a single scan."""
-    db = await get_db()
-    cursor = await db.execute(
-        """SELECT id, image_filename, predicted_class, confidence, 
-                  top_3_json, explanation, precautions, user_notes, disclaimer, created_at
-           FROM scans 
-           WHERE id = ? AND user_id = ?""",
-        (scan_id, user_id),
-    )
-    row = await cursor.fetchone()
+    pool = await get_db()
+    async with pool.acquire() as db:
+        row = await db.fetchrow(
+            """SELECT id, image_url, predicted_class, confidence, 
+                      top_3_json, explanation, precautions, user_notes, disclaimer, created_at
+               FROM scans 
+               WHERE id = $1 AND user_id = $2""",
+            scan_id, user_id
+        )
+    
     if not row:
         return None
 
-    top_3 = []
-    if row["top_3_json"]:
-        try:
-            top_3 = json.loads(row["top_3_json"])
-        except json.JSONDecodeError:
-            pass
-
-    precautions = []
-    if row["precautions"]:
-        try:
-            precautions = json.loads(row["precautions"])
-        except json.JSONDecodeError:
-            pass
+    # asyncpg handles JSONB automatically if passed as dict/list, 
+    # but since we stored them via json.dumps (for safety) or if the DB returns strings:
+    def _parse_json(val):
+        if isinstance(val, (list, dict)):
+            return val
+        if isinstance(val, str):
+            try:
+                return json.loads(val)
+            except:
+                return []
+        return []
 
     return {
         "id": row["id"],
-        "image_filename": row["image_filename"],
+        "image_url": row["image_url"],
         "predicted_class": row["predicted_class"],
         "confidence": row["confidence"],
-        "top_3": top_3,
+        "top_3": _parse_json(row["top_3_json"]),
         "explanation": row["explanation"],
-        "precautions": precautions,
+        "precautions": _parse_json(row["precautions"]),
         "user_notes": row["user_notes"],
         "disclaimer": row["disclaimer"],
-        "created_at": row["created_at"],
+        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
     }
 
 
@@ -130,20 +140,21 @@ async def update_scan_notes(
     user_id: int, scan_id: int, notes: str
 ) -> bool:
     """Update the user notes for a specific scan."""
-    db = await get_db()
-    cursor = await db.execute(
-        "UPDATE scans SET user_notes = ? WHERE id = ? AND user_id = ?",
-        (notes, scan_id, user_id),
-    )
-    await db.commit()
-    return cursor.rowcount > 0
+    pool = await get_db()
+    async with pool.acquire() as db:
+        result = await db.execute(
+            "UPDATE scans SET user_notes = $1 WHERE id = $2 AND user_id = $3",
+            notes, scan_id, user_id
+        )
+    # result is a string like "UPDATE 1"
+    return result.startswith("UPDATE") and " 0" not in result
 
 
 async def get_user_scan_count(user_id: int) -> int:
     """Return total number of scans for a user."""
-    db = await get_db()
-    cursor = await db.execute(
-        "SELECT COUNT(*) as count FROM scans WHERE user_id = ?", (user_id,)
-    )
-    row = await cursor.fetchone()
-    return row["count"] if row else 0
+    pool = await get_db()
+    async with pool.acquire() as db:
+        count = await db.fetchval(
+            "SELECT COUNT(*) FROM scans WHERE user_id = $1", user_id
+        )
+    return count if count else 0

@@ -49,7 +49,6 @@ export async function fetchModelMetadata() {
 
   return response.json();
 }
-
 // ---------- Auth ----------
 export async function registerUser(email, password, name) {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -102,7 +101,15 @@ export async function fetchHistory(limit = 20, offset = 0) {
     throw new Error(await extractError(response));
   }
 
-  return response.json();
+  const data = await response.json();
+  // Ensure we consistently use image_url
+  if (data.scans) {
+    data.scans = data.scans.map(s => ({
+      ...s,
+      image_url: s.image_url || s.image_filename // backward compatibility during migration
+    }));
+  }
+  return data;
 }
 
 export async function fetchScanDetail(scanId) {
@@ -114,7 +121,11 @@ export async function fetchScanDetail(scanId) {
     throw new Error(await extractError(response));
   }
 
-  return response.json();
+  const data = await response.json();
+  return {
+    ...data,
+    image_url: data.image_url || data.image_filename
+  };
 }
 
 export async function updateScanNotes(scanId, notes) {
@@ -154,8 +165,9 @@ export async function downloadScanReport(scanId) {
   window.URL.revokeObjectURL(url);
 }
 
-export function getScanImageUrl(filename) {
-  return `${API_BASE_URL}/scan-images/${filename}`;
+export function getScanImageUrl(scan) {
+  if (typeof scan === 'string') return scan; // direct URL string
+  return scan.image_url || scan.image_filename;
 }
 
 // ---------- AI DermAssistant ----------

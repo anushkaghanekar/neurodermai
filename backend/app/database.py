@@ -1,35 +1,34 @@
-"""SQLite database setup for user accounts and scan history."""
+"""PostgreSQL database setup for user accounts and scan history."""
 from __future__ import annotations
 
-import aiosqlite
-from pathlib import Path
+import asyncpg
+from typing import Any
 
 from app.config import get_settings
 
-_db_connection: aiosqlite.Connection | None = None
+_db_pool: asyncpg.Pool | None = None
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS scans (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    image_filename TEXT,
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    image_url TEXT,
     predicted_class TEXT NOT NULL,
     confidence REAL NOT NULL,
-    top_3_json TEXT,
+    top_3_json JSONB,
     explanation TEXT,
-    precautions TEXT,
+    precautions JSONB,
     user_notes TEXT,
     disclaimer TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_scans_user_id ON scans(user_id);
@@ -39,30 +38,31 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 
 async def init_db() -> None:
-    """Initialize the database connection and create tables."""
-    global _db_connection
+    """Initialize the database pool and create tables."""
+    global _db_pool
     settings = get_settings()
 
-    # Ensure the directory exists
-    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
-    settings.scan_uploads_dir.mkdir(parents=True, exist_ok=True)
+    # Create connection pool
+    _db_pool = await asyncpg.create_pool(
+        dsn=settings.database_url,
+        min_size=1,
+        max_size=10
+    )
 
-    _db_connection = await aiosqlite.connect(str(settings.db_path))
-    _db_connection.row_factory = aiosqlite.Row
-    await _db_connection.executescript(SCHEMA_SQL)
-    await _db_connection.commit()
+    async with _db_pool.acquire() as conn:
+        await conn.execute(SCHEMA_SQL)
 
 
-async def get_db() -> aiosqlite.Connection:
-    """Return the active database connection."""
-    if _db_connection is None:
+async def get_db() -> asyncpg.Pool:
+    """Return the active database pool."""
+    if _db_pool is None:
         await init_db()
-    return _db_connection
+    return _db_pool
 
 
 async def close_db() -> None:
-    """Close the database connection."""
-    global _db_connection
-    if _db_connection is not None:
-        await _db_connection.close()
-        _db_connection = None
+    """Close the database pool."""
+    global _db_pool
+    if _db_pool is not None:
+        await _db_pool.close()
+        _db_pool = None

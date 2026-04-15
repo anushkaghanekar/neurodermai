@@ -20,9 +20,6 @@ from app.reports import ReportGenerator
 from app.chatbot import get_chat_response
 
 
-# Allowed image file extensions (lowercase, with leading dot).
-_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif"}
-
 settings = get_settings()
 
 
@@ -136,17 +133,6 @@ async def predict(
             detail=(
                 f"Expected an image file but received '{file.content_type}'. "
                 "Please upload a JPEG, PNG, or WebP image."
-            ),
-        )
-
-    # Extension validation
-    ext = Path(file.filename).suffix.lower()
-    if ext and ext not in _ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"File extension '{ext}' is not supported. "
-                "Please upload a JPEG, PNG, WebP, GIF, BMP, or TIFF image."
             ),
         )
 
@@ -282,16 +268,3 @@ async def chat(
         scan_result=body.scan_context,
     )
     return {"response": response_text}
-
-
-# ---------- Serve Scan Images ----------
-@app.get("/scan-images/{filename}")
-async def serve_scan_image(filename: str) -> FileResponse:
-    """Serve saved scan images."""
-    image_path = settings.scan_uploads_dir / filename
-    if not image_path.exists() or not image_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Image not found.",
-        )
-    return FileResponse(image_path, media_type="image/jpeg")

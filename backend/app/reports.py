@@ -116,12 +116,8 @@ class ReportGenerator:
         self.pdf.cell(0, 8, f"ND-{self.scan['id']:06d}", ln=True)
 
     def _draw_image(self):
-        image_filename = self.scan.get("image_filename")
-        if not image_filename:
-            return
-            
-        image_path = self.settings.scan_uploads_dir / image_filename
-        if not image_path.exists():
+        image_url = self.scan.get("image_url")
+        if not image_url:
             return
             
         # Draw image box
@@ -129,14 +125,14 @@ class ReportGenerator:
         self.pdf.set_draw_color(226, 232, 240)
         self.pdf.rect(55, 85, 100, 75)
         
-        # Add the image
+        # Add the image from URL
         try:
-            # fpdf2 manages aspect ratio automatically if only one dimension is provided
-            self.pdf.image(str(image_path), x=56, y=86, w=98, h=73)
-        except Exception:
+            # fpdf2 can handle URLs directly
+            self.pdf.image(image_url, x=56, y=86, w=98, h=73)
+        except Exception as e:
             self.pdf.set_xy(55, 120)
             self.pdf.set_font("Helvetica", "I", 10)
-            self.pdf.cell(100, 10, "[Image could not be rendered]", align="C")
+            self.pdf.cell(100, 10, f"[Image Error: {str(e)}]", align="C")
 
     def _draw_analysis_summary(self):
         self.pdf.set_y(170)
