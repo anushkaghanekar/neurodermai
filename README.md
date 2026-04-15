@@ -1,231 +1,96 @@
-# NeuroDermAI
+# NeuroDermAI 🩺
 
-NeuroDermAI is a skin image classification app with a React frontend, a FastAPI inference backend, and a Kaggle-ready TensorFlow training pipeline.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-NeuroDermAI-blue?style=for-the-badge&logo=vercel)](https://neurodermai-ui.vercel.app/#/dashboard)
+[![Backend Status](https://img.shields.io/badge/API-Live-green?style=for-the-badge&logo=render)](https://neurodermai-backend.onrender.com/health)
 
-The project is intentionally focused on common skin conditions and educational use. It is not a medical diagnosis system.
+NeuroDermAI is a professional-grade, clinical-screening intelligence platform. It leverages state-of-the-art **DINOv2** vision models to classify 31 different skin conditions with high precision. Designed with a professional clinical aesthetic, the platform provides educational insights, contextual AI assistance, and persistent patient scan history.
 
-## What Is In This Repo
+---
 
-- `frontend/`: Vite + React client for image upload, preview, and prediction display
-- `backend/`: FastAPI inference service that loads a trained Keras model once at startup
-- `model/`: Kaggle notebook and local model artifact location
+## 🚀 Live Application
+Access the production interface here:  
+👉 **[neurodermai-ui.vercel.app](https://neurodermai-ui.vercel.app/#/dashboard)**
 
-## Canonical Classes
+---
 
-The training flow is built around this 7-class set:
+## ✨ Key Features
 
-- `acne`
-- `eczema`
-- `psoriasis`
-- `fungal`
-- `vitiligo`
-- `melanoma`
-- `normal`
+- **🔬 Advanced Classification**: Powered by a fine-tuned **DINOv2 (facebook/dinov2-base)** model supporting 31 unique skin conditions.
+- **🛡️ Secure Authentication**: Full user registration and login system with JWT-based protection.
+- **📊 Persistent History**: Complete scan history stored in a cloud-hosted **PostgreSQL** database (Neon).
+- **☁️ Cloud Image Storage**: Patient scans are securely hosted on **Cloudinary**, ensuring data persists across server restarts.
+- **💬 AI DermAssistant**: Contextual AI chatbot for educational guidance on screening results.
+- **📄 Professional PDF Reports**: Generate and download detailed clinical screening reports for any scan.
+- **🎨 Clinical UI**: A flat, professional design system built for medical environments with **Lucide React** iconography.
 
-The Kaggle notebook maps folder-name aliases into these canonical labels when building the curated dataset. If the attached dataset does not include images for a given class, the exported `labels.json` will omit that class, and the deployed app will honestly reflect only the trained classes.
+---
 
-## Architecture
+## 🛠️ Technical Architecture
 
-- Frontend: React + Vite
-- Backend: FastAPI + TensorFlow/Keras
-- Training: Kaggle Notebook + TensorFlow/Keras + EfficientNetB0
-- Model artifacts: `model/model.keras` and `model/labels.json`
-
-## Training Pipeline
-
-The Kaggle notebook lives at `model/neurodermai_training.ipynb`.
-
-It does the following:
-
-- Scans all directories under `/kaggle/input/` recursively
-- Maps folder names to canonical labels using a comprehensive alias dictionary
-- Builds a clean, deduplicated curated directory under `/kaggle/working/curated_dataset/`
-- Uses `ImageDataGenerator` with augmentation
-- Resizes to `224×224`
-- Applies strong augmentation (rotation, shift, shear, zoom, flip, brightness)
-- Uses EfficientNetB0 transfer learning with two-phase training:
-  - **Phase 1:** Frozen backbone, train head only (15 epochs)
-  - **Phase 2:** Fine-tune top backbone layers (30 epochs)
-- Handles imbalance with `sklearn` class weights
-- Uses `EarlyStopping`, `ModelCheckpoint`, and `ReduceLROnPlateau`
-- Evaluates with classification report, confusion matrix, and top-3 prediction demo
-- Exports:
-  - `model.keras` – trained model
-  - `labels.json` – class names + metadata
-  - `class_counts.json` – per-class image counts
-  - `training_history.json` – epoch-by-epoch metrics
-
-### Expected Dataset Shape
-
-The notebook is flexible about nesting. These are both acceptable:
-
-```text
-/kaggle/input/my-skin-dataset/
-  acne/
-  eczema/
-  psoriasis/
-  fungal/
-  vitiligo/
-  melanoma/
-  normal/
+```mermaid
+graph TD
+    User((User)) -->|React + Vite| Frontend[Frontend - Vercel]
+    Frontend -->|API Requests| Backend[FastAPI - Render]
+    Backend -->|Inference| HF[Hugging Face API - DINOv2]
+    Backend -->|Auth & History| DB[(PostgreSQL - Neon)]
+    Backend -->|Image Hosting| CD[Cloudinary]
+    Backend -->|Contextual Chat| Chat[Mistral / Cerebras AI]
 ```
 
-```text
-/kaggle/input/my-skin-dataset/
-  train/
-    acne/
-    eczema/
-  valid/
-    acne/
-    eczema/
-```
+---
 
-The notebook scans every path segment and tries to map it into the canonical class set using the alias dictionary. Use clear folder names wherever possible.
+## 🗂️ Project Structure
 
-### Kaggle Steps
+- `frontend/`: React + Vite client using a clinical-grade design system.
+- `backend/`: FastAPI service orchestration, authentication, and cloud storage logic.
+- `model/`: Documentation and historical notebooks for model development.
 
-1. Create a new Kaggle Notebook and enable GPU.
-2. Upload or attach your skin image datasets under `/kaggle/input/...`.
-3. Upload the notebook file or push via `kaggle kernels push`.
-4. Open `model/neurodermai_training.ipynb`.
-5. Run all cells.
-6. Download `model.keras` and `labels.json` from `/kaggle/working/`.
-7. Place both files in `model/`.
+---
 
-### Healthy Skin / `normal` Class Note
+## ⚙️ Setup & Installation
 
-If your Kaggle input does not contain healthy images, the notebook will print a warning and continue training on the available disease classes only. If you want `normal`, attach an additional healthy-skin dataset and place those images in a folder named `normal` or `healthy` inside `/kaggle/input/...`.
+### Backend
+1. **Navigate & Install**:
+   ```bash
+   cd backend
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. **Environment Configuration**: Create a `.env` file based on `.env.example`:
+   ```env
+   DATABASE_URL=your_postgresql_url
+   CLOUDINARY_URL=your_cloudinary_url
+   HF_TOKEN=your_huggingface_token
+   JWT_SECRET=your_secret
+   ```
+3. **Run**:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
-## Backend Setup
+### Frontend
+1. **Navigate & Install**:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. **Run**:
+   ```bash
+   npm run dev
+   ```
 
-The backend code lives in `backend/app/main.py`.
+---
 
-### Install
+## 📜 Disclaimer
 
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+**NeuroDermAI is an educational screening tool and not a medical diagnosis system.**  
+The results generated by the AI models are for informational purposes only. Users must always consult a qualified medical professional for any skin concerns, persistent changes, or treatment decisions.
 
-### Environment
+---
 
-Copy `backend/.env.example` if you want custom paths or CORS origins.
+## 🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-```bash
-MODEL_PATH=model/model.keras
-LABELS_PATH=model/labels.json
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-MAX_UPLOAD_MB=10
-```
-
-### Run
-
-From the repository root:
-
-```bash
-cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-```
-
-### API
-
-- `GET /health`
-- `GET /metadata`
-- `POST /predict`
-
-`/predict` accepts `multipart/form-data` with a single `file` field.
-
-`/metadata` reports whether the backend has successfully loaded a real Kaggle-exported model and which classes exist in `labels.json`.
-
-Example `/predict` response:
-
-```json
-{
-  "predicted_class": "eczema",
-  "confidence": 0.873421,
-  "top_3": [
-    { "label": "eczema", "probability": 0.873421 },
-    { "label": "psoriasis", "probability": 0.081213 },
-    { "label": "fungal", "probability": 0.028744 }
-  ],
-  "probabilities": {
-    "acne": 0.006122,
-    "eczema": 0.873421,
-    "psoriasis": 0.081213,
-    "fungal": 0.028744,
-    "vitiligo": 0.0,
-    "melanoma": 0.0,
-    "normal": 0.0105
-  },
-  "all_class_probabilities": { "...same as probabilities..." },
-  "explanation": "Educational summary for the predicted class.",
-  "precautions": [
-    "Short educational precaution 1",
-    "Short educational precaution 2"
-  ],
-  "disclaimer": "NeuroDermAI is an educational image-classification tool and not a medical diagnosis system."
-}
-```
-
-## Frontend Setup
-
-The React client lives in `frontend/src/pages/Dashboard.jsx`.
-
-### Install
-
-```bash
-cd frontend
-npm install
-```
-
-### Environment
-
-Copy `frontend/.env.example` and point it at the backend:
-
-```bash
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-### Run
-
-```bash
-cd frontend
-npm run dev
-```
-
-Open the Vite URL shown in the terminal, typically `http://localhost:5173`.
-
-## Local End-to-End Run
-
-1. Train the model in Kaggle and place `model.keras` and `labels.json` in `model/`.
-2. Start the backend on port `8000`.
-3. Start the frontend on port `5173`.
-4. Upload an image in the browser and review the returned prediction, confidence, top-3 list, probabilities, explanation, and precautions.
-
-## Deployment Notes
-
-The project is split so it can be deployed cleanly:
-
-- Frontend: Vercel or any static host that supports Vite output
-- Backend: Render, Hugging Face Spaces, or another Python host that can serve FastAPI and load TensorFlow
-
-Recommended deployment notes:
-
-- Keep `model.keras` and `labels.json` together from the same training run
-- Set `VITE_API_BASE_URL` to the deployed backend URL
-- Set backend `CORS_ORIGINS` to the deployed frontend origin
-- Verify the host supports TensorFlow runtime requirements before deploying
-
-## Reproducibility Notes
-
-- No login, authentication, or database is included in phase 1
-- No fake model or placeholder predictions are used
-- The backend expects real Kaggle-exported artifacts
-- The frontend reads real predictions from the backend API
-
-## Disclaimer
-
-NeuroDermAI is an educational classification project. It can be useful for experimentation, UI prototyping, and model deployment practice, but it is not medical-grade software and must not be used as a substitute for professional diagnosis or treatment.
+---
+Developed with ❤️ by the NeuroDermAI Team.
