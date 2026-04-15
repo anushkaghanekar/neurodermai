@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Scan, ClipboardList, MapPin, Sun, Moon, Activity, LogOut, User } from "lucide-react";
+import { Scan, ClipboardList, MapPin, Sun, Moon, BrainCircuit, LogOut, User } from "lucide-react";
 
 export default function Navbar({ user, theme, onToggleTheme, onNavigate, currentPage, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -11,9 +11,21 @@ export default function Navbar({ user, theme, onToggleTheme, onNavigate, current
 
   return (
     <nav className="navbar">
+      {/* SVG Gradient Definition for Logo */}
+      <svg width="0" height="0" style={{ position: "absolute" }}>
+        <defs>
+          <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#8b5cf6" />
+          </linearGradient>
+        </defs>
+      </svg>
       <div className="navbar-inner">
         <button className="navbar-brand" onClick={() => handleNav("dashboard")}>
-          <span className="navbar-logo"><Activity size={24} className="text-blue-600" /></span>
+          <span className="navbar-logo-container">
+            <BrainCircuit size={28} className="navbar-logo-icon" />
+            <div className="navbar-logo-glow"></div>
+          </span>
           <span className="navbar-title">NeuroDermAI</span>
         </button>
 
