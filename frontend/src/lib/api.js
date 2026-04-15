@@ -158,4 +158,26 @@ export function getScanImageUrl(filename) {
   return `${API_BASE_URL}/scan-images/${filename}`;
 }
 
+// ---------- AI DermAssistant ----------
+export async function sendChatMessage(message, history = [], scanContext = null) {
+  const response = await fetch(`${API_BASE_URL}/chat`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message,
+      history,
+      scan_context: scanContext,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractError(response));
+  }
+
+  return response.json();
+}
+
 export { API_BASE_URL };

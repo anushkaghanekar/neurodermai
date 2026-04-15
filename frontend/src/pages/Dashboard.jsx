@@ -131,7 +131,7 @@ function isMobileDevice() {
   );
 }
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, onScanComplete }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [result, setResult] = useState(null);
@@ -223,6 +223,8 @@ export default function Dashboard({ user }) {
       const payload = await predictSkinCondition(selectedFile);
       setResult(payload);
       setUserNotes(""); // Reset notes for new scan
+      // Pass scan result to parent for chat context
+      if (onScanComplete) onScanComplete(payload);
       // Show "saved to history" toast if applicable
       if (payload.saved_to_history) {
         setShowToast(true);

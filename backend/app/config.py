@@ -18,6 +18,7 @@ load_dotenv(PROJECT_ROOT / "backend" / ".env")
 class Settings:
     hf_model_id: str
     hf_token: str | None
+    hf_chat_model: str
     cors_origins: list[str]
     max_upload_bytes: int
     # Auth & database
@@ -35,6 +36,10 @@ def get_settings() -> Settings:
         "Jayanth2002/dinov2-base-finetuned-SkinDisease",
     )
     hf_token = os.getenv("HF_TOKEN") or None
+    hf_chat_model = os.getenv(
+        "HF_CHAT_MODEL",
+        "mistralai/Mistral-7B-Instruct-v0.3",
+    )
 
     raw_origins = os.getenv(
         "CORS_ORIGINS",
@@ -56,6 +61,7 @@ def get_settings() -> Settings:
     return Settings(
         hf_model_id=hf_model_id,
         hf_token=hf_token,
+        hf_chat_model=hf_chat_model,
         cors_origins=cors_origins,
         max_upload_bytes=max_upload_mb * 1024 * 1024,
         jwt_secret=jwt_secret,

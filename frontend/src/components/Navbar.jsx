@@ -44,6 +44,13 @@ export default function Navbar({ user, theme, onToggleTheme, onNavigate, current
           )}
 
           <button 
+            className={`nav-link ${currentPage === "clinics" ? "nav-active" : ""}`}
+            onClick={() => handleNav("clinics")}
+          >
+            📍 Clinics
+          </button>
+
+          <button 
             className="nav-link theme-btn"
             onClick={onToggleTheme}
             aria-label="Toggle theme"

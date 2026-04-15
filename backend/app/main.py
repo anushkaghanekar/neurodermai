@@ -17,6 +17,7 @@ from app.knowledge import DISCLAIMER, CLASS_GUIDANCE
 from app.auth import register_user, login_user, get_current_user, require_auth
 from app.history import save_scan, get_user_scans, get_scan_detail, get_user_scan_count, update_scan_notes
 from app.reports import ReportGenerator
+from app.chatbot import get_chat_response
 
 
 # Allowed image file extensions (lowercase, with leading dot).
@@ -67,6 +68,12 @@ class LoginRequest(BaseModel):
 
 class NotesRequest(BaseModel):
     user_notes: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[dict] = []
+    scan_context: dict | None = None
 
 
 # ---------- Health / Metadata ----------
@@ -260,6 +267,21 @@ async def get_report(
             "Content-Disposition": f"attachment; filename=NeuroDermAI-Report-{scan_id}.pdf"
         }
     )
+
+
+# ---------- AI DermAssistant ----------
+@app.post("/chat")
+async def chat(
+    body: ChatRequest,
+    user: dict[str, Any] | None = Depends(get_current_user),
+) -> dict:
+    """Send a message to the AI DermAssistant and get a contextual response."""
+    response_text = await get_chat_response(
+        user_message=body.message,
+        conversation_history=body.history,
+        scan_result=body.scan_context,
+    )
+    return {"response": response_text}
 
 
 # ---------- Serve Scan Images ----------
