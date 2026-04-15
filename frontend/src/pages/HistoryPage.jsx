@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loader2, ClipboardList, Download } from "lucide-react";
 import { fetchHistory, getScanImageUrl, downloadScanReport } from "../lib/api";
 
 const DISPLAY_LABELS = {
@@ -97,12 +98,12 @@ export default function HistoryPage() {
 
       {isLoading ? (
         <div className="empty-state">
-          <div className="empty-icon" style={{ animation: "pulse 1.2s ease-in-out infinite" }}>⏳</div>
+          <div className="empty-icon text-gray-400 mb-4 flex justify-center"><Loader2 size={48} className="animate-spin" strokeWidth={1} /></div>
           <p>Loading your scans…</p>
         </div>
       ) : scans.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-icon">📋</div>
+          <div className="empty-icon text-gray-400 mb-4 flex justify-center"><ClipboardList size={48} strokeWidth={1} /></div>
           <p>No scans yet. Run an analysis while signed in to start building your history.</p>
         </div>
       ) : (
@@ -126,11 +127,11 @@ export default function HistoryPage() {
                       {displayLabel(scan.predicted_class)}
                     </h3>
                     <button 
-                      className="history-download-btn"
+                      className="history-download-btn flex items-center justify-center text-gray-500 hover:text-blue-600 transition-colors"
                       title="Download PDF Report"
                       onClick={() => downloadScanReport(scan.id)}
                     >
-                      📄
+                      <Download size={18} />
                     </button>
                   </div>
                   <div className="history-card-meta">

@@ -3,64 +3,64 @@
 :root, [data-theme="light"] {
   font-family: "Outfit", sans-serif;
   line-height: 1.6;
-  font-weight: 300;
+  font-weight: 400;
   
-  /* Light Mode Palette: Platinum Clinical */
-  --bg-color: #f8fafc;
-  --bg-gradient-1: rgba(99, 102, 241, 0.05);
-  --bg-gradient-2: rgba(16, 185, 129, 0.04);
-  --panel-bg: rgba(255, 255, 255, 0.9);
-  --panel-border: rgba(226, 232, 240, 0.5);
-  --text-primary: #0f172a;
-  --text-muted: #475569;
-  --accent-blue: #4f46e5;
-  --accent-teal: #10b981;
-  --color-high: #e11d48;
+  /* Light Mode Palette: Clinical Standard */
+  --bg-color: #f3f4f6;
+  --bg-gradient-1: transparent;
+  --bg-gradient-2: transparent;
+  --panel-bg: #ffffff;
+  --panel-border: #e5e7eb;
+  --text-primary: #111827;
+  --text-muted: #6b7280;
+  --accent-blue: #2563eb;
+  --accent-teal: #0d9488;
+  --color-high: #dc2626;
   --color-moderate: #d97706;
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-  --glow: 0 0 20px rgba(99, 102, 241, 0.1);
-  --radius-xl: 24px;
+  --shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --glow: none;
+  --radius-xl: 12px;
   
   /* Component Specific */
-  --title-gradient: linear-gradient(135deg, #1e293b, #4f46e5);
-  --btn-secondary-bg: #f1f5f9;
-  --btn-secondary-hover: #e2e8f0;
-  --upload-zone-bg: #ffffff;
+  --title-gradient: none;
+  --btn-secondary-bg: #f3f4f6;
+  --btn-secondary-hover: #e5e7eb;
+  --upload-zone-bg: #f9fafb;
   --card-bg: #ffffff;
-  --section-bg: rgba(241, 245, 249, 0.6);
-  --bar-bg: #e2e8f0;
+  --section-bg: #f9fafb;
+  --bar-bg: #e5e7eb;
   --empty-icon: 0.1;
   --hero-inner-bg: #ffffff;
-  --navbar-bg: rgba(255, 255, 255, 0.85);
+  --navbar-bg: #ffffff;
 }
 
 [data-theme="dark"] {
-  /* Dark Mode Palette */
-  --bg-color: #0b0f19;
-  --bg-gradient-1: rgba(99, 102, 241, 0.12);
-  --bg-gradient-2: rgba(16, 185, 129, 0.1);
-  --panel-bg: rgba(15, 23, 42, 0.65);
-  --panel-border: rgba(148, 163, 184, 0.15);
+  /* Dark Mode Palette: Slate Medical */
+  --bg-color: #0f172a;
+  --bg-gradient-1: transparent;
+  --bg-gradient-2: transparent;
+  --panel-bg: #1e293b;
+  --panel-border: #334155;
   --text-primary: #f8fafc;
   --text-muted: #94a3b8;
-  --accent-blue: #6366f1;
-  --accent-teal: #10b981;
+  --accent-blue: #3b82f6;
+  --accent-teal: #14b8a6;
   --color-high: #ef4444;
   --color-moderate: #f59e0b;
-  --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
-  --glow: 0 0 30px rgba(99, 102, 241, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --glow: none;
   
   /* Component Specific */
-  --title-gradient: linear-gradient(135deg, #fff, #94a3b8);
-  --btn-secondary-bg: rgba(255, 255, 255, 0.05);
-  --btn-secondary-hover: rgba(255, 255, 255, 0.1);
-  --upload-zone-bg: rgba(30, 41, 59, 0.4);
-  --card-bg: rgba(15, 23, 42, 0.5);
-  --section-bg: rgba(255, 255, 255, 0.02);
-  --bar-bg: rgba(255, 255, 255, 0.05);
-  --empty-icon: 0.3;
-  --hero-inner-bg: linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
-  --navbar-bg: rgba(11, 15, 25, 0.85);
+  --title-gradient: none;
+  --btn-secondary-bg: #334155;
+  --btn-secondary-hover: #475569;
+  --upload-zone-bg: #0f172a;
+  --card-bg: #1e293b;
+  --section-bg: #0f172a;
+  --bar-bg: #334155;
+  --empty-icon: 0.1;
+  --hero-inner-bg: #1e293b;
+  --navbar-bg: #1e293b;
 }
 
 body {

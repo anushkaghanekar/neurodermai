@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MapPin, Stethoscope, Building2, Hospital, Microscope, Map, Search, ArrowRight } from "lucide-react";
 
 function getGoogleMapsUrl(lat, lng) {
   return `https://www.google.com/maps/search/dermatologist+skin+clinic/@${lat},${lng},13z`;
@@ -9,10 +10,10 @@ function getGoogleMapsDirectionsUrl(lat, lng, destLat, destLng) {
 }
 
 const SPECIALTIES = [
-  { label: "Dermatologist", query: "dermatologist", icon: "👨‍⚕️" },
-  { label: "Skin Clinic", query: "skin+clinic", icon: "🏥" },
-  { label: "Dermatology Hospital", query: "dermatology+hospital", icon: "🏨" },
-  { label: "Skin Cancer Screening", query: "skin+cancer+screening+center", icon: "🔬" },
+  { label: "Dermatologist", query: "dermatologist", icon: <Stethoscope size={28} /> },
+  { label: "Skin Clinic", query: "skin+clinic", icon: <Building2 size={28} /> },
+  { label: "Dermatology Hospital", query: "dermatology+hospital", icon: <Hospital size={28} /> },
+  { label: "Skin Cancer Screening", query: "skin+cancer+screening+center", icon: <Microscope size={28} /> },
 ];
 
 export default function ClinicFinder() {
@@ -75,7 +76,7 @@ export default function ClinicFinder() {
       {/* Location Card */}
       <div className="glass-panel clinic-location-card">
         <div className="clinic-location-content">
-          <div className="clinic-location-icon">📍</div>
+          <div className="clinic-location-icon text-blue-600"><MapPin size={32} /></div>
           <div>
             <h3>Your Location</h3>
             {location ? (
@@ -91,11 +92,11 @@ export default function ClinicFinder() {
         </div>
         {!location && (
           <button
-            className={`btn btn-primary clinic-locate-btn ${isLocating ? "btn-loading" : ""}`}
+            className={`btn btn-primary clinic-locate-btn flex items-center gap-2 ${isLocating ? "btn-loading" : ""}`}
             onClick={requestLocation}
             disabled={isLocating}
           >
-            {isLocating ? "Locating..." : "📍 Share My Location"}
+            {isLocating ? "Locating..." : <><MapPin size={18} /> Share My Location</>}
           </button>
         )}
         {locError && <p className="error-text">{locError}</p>}
@@ -110,9 +111,9 @@ export default function ClinicFinder() {
               className="clinic-specialty-card glass-panel"
               onClick={() => openSearch(spec.query)}
             >
-              <span className="clinic-specialty-icon">{spec.icon}</span>
+              <span className="clinic-specialty-icon text-teal-600">{spec.icon}</span>
               <span className="clinic-specialty-label">{spec.label}</span>
-              <span className="clinic-specialty-arrow">→</span>
+              <span className="clinic-specialty-arrow"><ArrowRight size={20} /></span>
             </button>
           ))}
         </div>
@@ -125,9 +126,9 @@ export default function ClinicFinder() {
             href={getGoogleMapsUrl(location.lat, location.lng)}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-primary clinic-map-btn"
+            className="btn btn-primary clinic-map-btn flex items-center justify-center gap-2"
           >
-            🗺️ Open Full Map Search
+            <Map size={20} /> Open Full Map Search
           </a>
         </div>
       )}

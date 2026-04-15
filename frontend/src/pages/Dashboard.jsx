@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { Camera, ShieldAlert, FileText, Lightbulb, AlertTriangle, CheckCircle, X, PlusCircle, Monitor } from "lucide-react";
 import { fetchModelMetadata, predictSkinCondition, updateScanNotes, downloadScanReport } from "../lib/api";
 
 /* ---------- Display-label mapping (HF model label → UI) ---------- */
@@ -354,8 +355,8 @@ export default function Dashboard({ user, onScanComplete }) {
     <>
       {/* Toast notification */}
       {showToast && (
-        <div className="toast toast-success fade-in">
-          ✓ Scan saved to your history
+        <div className="toast toast-success fade-in flex items-center gap-2">
+          <CheckCircle size={18} /> Scan saved to your history
         </div>
       )}
 
@@ -365,7 +366,7 @@ export default function Dashboard({ user, onScanComplete }) {
           <div className="camera-modal" onClick={(e) => e.stopPropagation()}>
             <div className="camera-header">
               <h3>Camera Capture</h3>
-              <button className="camera-close-btn" onClick={stopCamera}>✕</button>
+              <button className="camera-close-btn" onClick={stopCamera}><X size={20} /></button>
             </div>
             <div className="camera-viewfinder">
               <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
@@ -418,21 +419,21 @@ export default function Dashboard({ user, onScanComplete }) {
                 </div>
               ) : (
                 <div className="upload-content">
-                  <div className="upload-icon">⊕</div>
+                  <div className="upload-icon"><PlusCircle size={32} /></div>
                   <div className="upload-text">Click or drag &amp; drop to upload</div>
                   <div className="upload-hint">PNG, JPG or WebP. Optimal size under 5MB.</div>
                 </div>
               )}
             </label>
 
-            <div className="upload-actions">
+            <div className="upload-actions flex-wrap">
               <button 
-                className="btn btn-camera"
+                className="btn btn-camera flex items-center gap-2"
                 onClick={openCamera}
                 disabled={isLoading}
                 title="Take a photo with your camera"
               >
-                📷 Camera
+                <Camera size={18} /> Camera
               </button>
               <button 
                 className="btn btn-secondary" 
@@ -451,8 +452,8 @@ export default function Dashboard({ user, onScanComplete }) {
             </div>
 
             {!user && (
-              <p className="login-hint">
-                💡 Sign in to automatically save scans to your history.
+              <p className="login-hint flex items-center gap-2">
+                <Lightbulb size={16} /> Sign in to automatically save scans to your history.
               </p>
             )}
           </section>
@@ -471,7 +472,7 @@ export default function Dashboard({ user, onScanComplete }) {
                     <span className="prediction-label">Primary Match</span>
                     <h3 className="prediction-value">{displayLabel(predictionLabel)}</h3>
                     {severity === "high" && (
-                      <span className="severity-badge severity-high-badge">⚠ High Priority – Seek Evaluation</span>
+                      <span className="severity-badge severity-high-badge flex items-center gap-1"><AlertTriangle size={14} /> High Priority – Seek Evaluation</span>
                     )}
                     {severity === "moderate" && (
                       <span className="severity-badge severity-moderate-badge">Clinical Attention Advised</span>
@@ -517,8 +518,11 @@ export default function Dashboard({ user, onScanComplete }) {
                 </div>
 
                 {result.disclaimer && (
-                  <div className="banner banner-warning" style={{marginTop: "20px", marginBottom: 0}}>
-                    <strong>⚕ Disclaimer: </strong> {result.disclaimer}
+                  <div className="banner banner-warning flex items-start gap-2" style={{marginTop: "20px", marginBottom: 0}}>
+                    <ShieldAlert size={20} className="shrink-0 mt-1" />
+                    <div>
+                      <strong>Disclaimer: </strong> {result.disclaimer}
+                    </div>
                   </div>
                 )}
 
@@ -548,11 +552,11 @@ export default function Dashboard({ user, onScanComplete }) {
                         Save Notes
                       </button>
                       <button 
-                        className={`btn btn-primary ${isLoading ? "btn-loading" : ""}`}
+                        className={`btn btn-primary flex items-center gap-2 ${isLoading ? "btn-loading" : ""}`}
                         onClick={handleDownloadReport}
                         disabled={isLoading}
                       >
-                        📄 Download Report (PDF)
+                        <FileText size={18} /> Download Report (PDF)
                       </button>
                     </div>
                   </div>
@@ -560,7 +564,7 @@ export default function Dashboard({ user, onScanComplete }) {
               </div>
             ) : (
               <div className="empty-state">
-                <div className="empty-icon">♢</div>
+                <div className="empty-icon text-gray-400 mb-4"><Monitor size={48} strokeWidth={1} /></div>
                 <p>Upload an image and run the analysis to view results.</p>
               </div>
             )}
@@ -596,12 +600,16 @@ export default function Dashboard({ user, onScanComplete }) {
         </section>
 
         {/* Persistent Disclaimer Footer */}
-        <footer className="disclaimer-footer">
-          <p>
-            <strong>⚕ Screening Disclaimer</strong><br />
-            NeuroDermAI is an educational image-classification tool and <em>not</em> a medical 
-            diagnosis system. Results are for informational purposes only. Please consult a 
-            qualified clinician for any symptoms, persistent skin changes, pain, or treatment decisions.
+        <footer className="disclaimer-footer text-center">
+          <p className="flex flex-col items-center gap-2">
+            <span className="flex items-center gap-2 font-semibold">
+              <ShieldAlert size={18} /> Screening Disclaimer
+            </span>
+            <span>
+              NeuroDermAI is an educational image-classification tool and <em>not</em> a medical 
+              diagnosis system. Results are for informational purposes only. Please consult a 
+              qualified clinician for any symptoms, persistent skin changes, pain, or treatment decisions.
+            </span>
           </p>
         </footer>
       </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Scan, ClipboardList, MapPin, Sun, Moon, Activity, LogOut, User } from "lucide-react";
 
 export default function Navbar({ user, theme, onToggleTheme, onNavigate, currentPage, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -12,7 +13,7 @@ export default function Navbar({ user, theme, onToggleTheme, onNavigate, current
     <nav className="navbar">
       <div className="navbar-inner">
         <button className="navbar-brand" onClick={() => handleNav("dashboard")}>
-          <span className="navbar-logo">◆</span>
+          <span className="navbar-logo"><Activity size={24} className="text-blue-600" /></span>
           <span className="navbar-title">NeuroDermAI</span>
         </button>
 
@@ -28,41 +29,41 @@ export default function Navbar({ user, theme, onToggleTheme, onNavigate, current
 
         <div className={`navbar-links ${menuOpen ? "navbar-links-open" : ""}`}>
           <button 
-            className={`nav-link ${currentPage === "dashboard" ? "nav-active" : ""}`}
+            className={`nav-link flex items-center gap-2 ${currentPage === "dashboard" ? "nav-active" : ""}`}
             onClick={() => handleNav("dashboard")}
           >
-            🔬 Scan
+            <Scan size={18} /> Scan
           </button>
 
           {user && (
             <button 
-              className={`nav-link ${currentPage === "history" ? "nav-active" : ""}`}
+              className={`nav-link flex items-center gap-2 ${currentPage === "history" ? "nav-active" : ""}`}
               onClick={() => handleNav("history")}
             >
-              📋 History
+              <ClipboardList size={18} /> History
             </button>
           )}
 
           <button 
-            className={`nav-link ${currentPage === "clinics" ? "nav-active" : ""}`}
+            className={`nav-link flex items-center gap-2 ${currentPage === "clinics" ? "nav-active" : ""}`}
             onClick={() => handleNav("clinics")}
           >
-            📍 Clinics
+            <MapPin size={18} /> Clinics
           </button>
 
           <button 
-            className="nav-link theme-btn"
+            className="nav-link theme-btn flex items-center justify-center"
             onClick={onToggleTheme}
             aria-label="Toggle theme"
           >
-            {theme === "dark" ? "☀️" : "🌙"}
+            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
           {user ? (
-            <div className="nav-user-section">
-              <span className="nav-user-name">{user.name}</span>
-              <button className="nav-link nav-logout" onClick={onLogout}>
-                Logout
+            <div className="nav-user-section flex items-center gap-3">
+              <span className="nav-user-name flex items-center gap-2"><User size={16} /> {user.name}</span>
+              <button className="nav-link nav-logout flex items-center gap-2" onClick={onLogout}>
+                <LogOut size={16} /> Logout
               </button>
             </div>
           ) : (

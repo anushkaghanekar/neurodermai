@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { MessageCircle, X, Send, Bot } from "lucide-react";
 import { sendChatMessage } from "../lib/api";
 
 const WELCOME_MESSAGE = {
@@ -87,7 +88,7 @@ export default function ChatAssistant({ scanResult }) {
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Toggle AI Assistant"
       >
-        {isOpen ? "✕" : "🤖"}
+        {isOpen ? <X size={24} /> : <MessageCircle size={28} className="text-white" />}
       </button>
 
       {/* Chat Window */}
@@ -96,7 +97,7 @@ export default function ChatAssistant({ scanResult }) {
           {/* Header */}
           <div className="chat-header">
             <div className="chat-header-info">
-              <span className="chat-header-icon">🤖</span>
+              <span className="chat-header-icon text-blue-600"><Bot size={24} /></span>
               <div>
                 <h3 className="chat-header-title">DermAssistant</h3>
                 <p className="chat-header-status">
@@ -107,10 +108,10 @@ export default function ChatAssistant({ scanResult }) {
               </div>
             </div>
             <button
-              className="chat-close-btn"
+              className="chat-close-btn flex items-center justify-center"
               onClick={() => setIsOpen(false)}
             >
-              ✕
+              <X size={20} />
             </button>
           </div>
 
@@ -166,11 +167,11 @@ export default function ChatAssistant({ scanResult }) {
               disabled={isTyping}
             />
             <button
-              className="chat-send-btn"
+              className="chat-send-btn flex items-center justify-center p-2"
               onClick={() => handleSend()}
               disabled={!input.trim() || isTyping}
             >
-              ↑
+              <Send size={18} />
             </button>
           </div>
         </div>
