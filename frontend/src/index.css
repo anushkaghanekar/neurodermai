@@ -238,13 +238,11 @@ h1, h2, h3, h4, h5, strong {
 }
 
 .brand-title {
-  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
-  background: var(--title-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
 }
 
 .brand-subtitle {
