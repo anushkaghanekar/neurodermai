@@ -1,4 +1,4 @@
-import { getToken } from "./auth";
+import { getToken, clearToken } from "./auth";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"
@@ -13,6 +13,13 @@ function authHeaders() {
 }
 
 async function extractError(response) {
+  // Auto-logout on expired/invalid token
+  if (response.status === 401) {
+    clearToken();
+    window.location.hash = "#/auth";
+    window.location.reload();
+    return "Session expired. Please log in again.";
+  }
   try {
     const payload = await response.json();
     return payload.detail || payload.message || "Request failed.";
