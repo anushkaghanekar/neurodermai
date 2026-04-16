@@ -54,7 +54,7 @@ def get_settings() -> Settings:
     # JWT settings
     jwt_secret = os.getenv("JWT_SECRET", secrets.token_hex(32))
     jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
-    jwt_expiry_hours = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
+    jwt_expiry_hours = int(os.getenv("JWT_EXPIRY_HOURS", "168"))  # 7 days
 
     # Local Fallback
     backend_dir = PROJECT_ROOT / "backend"
