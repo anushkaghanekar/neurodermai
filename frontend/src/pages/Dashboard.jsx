@@ -385,7 +385,7 @@ export default function Dashboard({ user, onScanComplete }) {
         <header className="brand-header">
           <h1 className="brand-title">NeuroDermAI</h1>
           <p className="brand-subtitle">
-            AI-powered skin condition screening powered by DINOv2. Covers 31 dermatological conditions.
+            Advanced AI-powered screening for 31 dermatological conditions.
           </p>
         </header>
 
@@ -576,7 +576,7 @@ export default function Dashboard({ user, onScanComplete }) {
           <header className="gallery-header">
             <h2 className="gallery-title">Condition Reference Guide</h2>
             <p className="brand-subtitle">
-              31 dermatological conditions classified by our DINOv2-based AI screening model.
+              Comprehensive reference for the 31 dermatological conditions supported by our screening model.
             </p>
           </header>
 
